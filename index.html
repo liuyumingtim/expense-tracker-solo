@@ -959,6 +959,7 @@ let todayUserFilter=null, monthUserFilter=null, repUserFilter=null;
 let recurringPayments=[], selFreq='monthly';
 let pendingOps=[], flushing=false;
 const DEVICE_KEY='xp_device_user';
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbzKALMg_nuP_S6f7UExFMP5tIKm9IB_yJtNY83HK6CP5PEUUS9Nvfqv4WFL_dnoA7ExaQ/exec';
 
 // ===== 日期工具 =====
 function today(){
@@ -993,7 +994,7 @@ function loadLocal(){
     });
   }
   const ra=lsJSON('xp_rates',null);if(ra)CURRENCIES.forEach(c=>{if(ra[c.code])c.rate=ra[c.code];});
-  apiUrl=localStorage.getItem('xp_api_url')||'';
+  apiUrl=localStorage.getItem('xp_api_url')||DEFAULT_API_URL;
   const lc=localStorage.getItem('xp_last_curr');
   if(lc&&QUICK_CURR.includes(lc))selCurr=lc;
   noteMemory=lsJSON('xp_note_memory',{})||{};
