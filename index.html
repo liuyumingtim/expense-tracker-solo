@@ -146,6 +146,8 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 .hero-amt{display:flex;align-items:baseline;gap:9px}
 .hero-cur{font-family:var(--serif);font-size:30px;font-weight:600;color:var(--accent);line-height:1}
 .hero-value{font-family:var(--serif);font-size:50px;font-weight:600;color:var(--ink);letter-spacing:-0.02em;line-height:1;font-variant-numeric:tabular-nums}
+.balance-positive{color:var(--ok)!important}
+.balance-negative{color:var(--danger)!important}
 .hero .stat-sub{margin-top:8px}
 
 /* ── Section titles ── */
@@ -803,9 +805,9 @@ const I18N={
     note_placeholder:'例：全家、MK火鍋、Grab',
     custom_cat_placeholder:'輸入自訂類別名稱',
     btn_save:'儲存記錄',btn_save_edit:'儲存修改',btn_cancel:'取消',btn_save_budget:'儲存',
-    today_total:'今日合計 (NT$)',today_sub:'新台幣',count_sub:'筆記錄',
-    month_total:'本月合計 (NT$)',
-    report_total:'期間合計 (NT$)',
+    today_total:'今日結餘 (NT$)',today_sub:'收入 - 支出',count_sub:'筆記錄',
+    month_total:'本月結餘 (NT$)',
+    report_total:'期間結餘 (NT$)',
     sec_details:'明細',sec_cat_analysis:'各類別分析',sec_compare:'花費比較',sec_budget:'個人預算',
     start_date:'開始日期',end_date:'結束日期',filter_cat:'類別篩選',filter_trip:'團別篩選',btn_search:'查詢',
     all_cats:'全部',
@@ -837,7 +839,7 @@ const I18N={
     syncing:'同步中...',rate_updating:'更新中...',rate_updated:'✅ 已更新 ',rate_types:' 種',rate_fail:'❌ 失敗',
     confirm_delete:'確定刪除？',confirm_clear:'確定清除本機快取？Google Sheets 資料不受影響。',cleared:'本機快取已清除。',
     no_records:'沒有記錄',no_export:'沒有資料可匯出',saving:'儲存中...',
-    income_total:'收入',expense_total:'支出',
+    income_total:'收入',expense_total:'支出',balance_total:'結餘',
     csv_headers:['日期','類型','團別','類別','金額','幣別','台幣換算','備註','使用者'],
     users_saved:'使用者名稱已儲存！',
     cat_food:'食物',cat_drink:'飲料',cat_dessert:'甜點',cat_transport:'交通',cat_shopping:'購物',
@@ -885,9 +887,9 @@ const I18N={
     note_placeholder:'e.g. 7-11, MK Suki, Grab',
     custom_cat_placeholder:'Custom category name',
     btn_save:'Save Record',btn_save_edit:'Save Changes',btn_cancel:'Cancel',btn_save_budget:'Save',
-    today_total:'Today Total (NT$)',today_sub:'NT$',count_sub:'records',
-    month_total:'Monthly Total (NT$)',
-    report_total:'Period Total (NT$)',
+    today_total:'Today Balance (NT$)',today_sub:'Income - Expense',count_sub:'records',
+    month_total:'Monthly Balance (NT$)',
+    report_total:'Period Balance (NT$)',
     sec_details:'Details',sec_cat_analysis:'Category Analysis',sec_compare:'Expense Comparison',sec_budget:'Personal Budget',
     start_date:'Start Date',end_date:'End Date',filter_cat:'Category Filter',filter_trip:'Tour Filter',btn_search:'Search',
     all_cats:'All',
@@ -919,7 +921,7 @@ const I18N={
     syncing:'Syncing...',rate_updating:'Updating...',rate_updated:'✅ Updated ',rate_types:' currencies',rate_fail:'❌ Failed',
     confirm_delete:'Delete this record?',confirm_clear:'Clear local cache? Cloud data is safe.',cleared:'Cache cleared.',
     no_records:'No records',no_export:'No data to export',saving:'Saving...',
-    income_total:'Income',expense_total:'Expense',
+    income_total:'Income',expense_total:'Expense',balance_total:'Balance',
     csv_headers:['Date','Type','Tour','Category','Amount','Currency','NT$','Note','User'],
     users_saved:'User names saved!',
     cat_food:'Food',cat_drink:'Drink',cat_dessert:'Dessert',cat_transport:'Transport',cat_shopping:'Shopping',
@@ -1632,6 +1634,33 @@ function toTHB(a,c){return Math.round(a*getRate(c)*100)/100;}
 function isIncome(r){return r&&r.kind==='income';}
 function expenseRecords(list){return list.filter(r=>!isIncome(r));}
 function incomeRecords(list){return list.filter(r=>isIncome(r));}
+function sumTHB(list){return list.reduce((s,r)=>s+toTHB(r.amount,r.curr),0);}
+function moneyTotals(list){
+  const expense=sumTHB(expenseRecords(list));
+  const income=sumTHB(incomeRecords(list));
+  return {expense,income,balance:income-expense};
+}
+function fmtBalanceNumber(v){
+  const n=Math.round(v);
+  if(n===0)return '0';
+  return (n>0?'+':'-')+Math.abs(n).toLocaleString();
+}
+function balanceClass(v){return Math.round(v)<0?'balance-negative':Math.round(v)>0?'balance-positive':'';}
+function balanceBreakdown(totals){
+  return `${T('income_total')} ${fmtTHB(totals.income)} - ${T('expense_total')} ${fmtTHB(totals.expense)}`;
+}
+function setHeroBalance(prefix,list){
+  const totals=moneyTotals(list);
+  const value=document.getElementById(prefix+'-total');
+  const sub=document.getElementById(prefix+'-stat-sub');
+  const count=document.getElementById(prefix+'-count');
+  value.textContent=fmtBalanceNumber(totals.balance);
+  value.classList.remove('balance-positive','balance-negative');
+  const cls=balanceClass(totals.balance);if(cls)value.classList.add(cls);
+  sub.textContent=balanceBreakdown(totals);
+  count.textContent=list.length;
+  return totals;
+}
 function activeCats(kind=entryKind){return kind==='income'?INCOME_CATS:CATS;}
 function activePrimaryCats(kind=entryKind){return kind==='income'?PRIMARY_INCOME_CATS:PRIMARY_CATS;}
 function getCat(id){const c=[...CATS,...INCOME_CATS].find(x=>x.id===id);if(c)return{...c,label:T(c.lkey)};return{id,label:id,icon:'📌',color:'#f5f5f0'};}
@@ -2018,10 +2047,9 @@ function renderEntries(list,cid){
     const grp=document.createElement('div');grp.className='day-group';
     const parts=date.split('-');
     const ds=parts[0]+'/'+parts[1]+'/'+parts[2];
-    const expenseTotal=expenseRecords(byDate[date]).reduce((s,r)=>s+toTHB(r.amount,r.curr),0);
-    const incomeTotal=incomeRecords(byDate[date]).reduce((s,r)=>s+toTHB(r.amount,r.curr),0);
-    const incomeText=incomeTotal>0?` · ${T('income_total')} ${fmtTHB(incomeTotal)}`:'';
-    grp.innerHTML=`<div class="day-header">${ds} — ${T('expense_total')} ${fmtTHB(expenseTotal)}${incomeText}</div>`;
+    const totals=moneyTotals(byDate[date]);
+    const balanceText=` · ${T('balance_total')} ${fmtBalanceNumber(totals.balance)}`;
+    grp.innerHTML=`<div class="day-header">${ds} — ${T('income_total')} ${fmtTHB(totals.income)} · ${T('expense_total')} ${fmtTHB(totals.expense)}${balanceText}</div>`;
     byDate[date].sort((a,b)=>(b.ts||0)-(a.ts||0)).forEach(r=>{
       const cat=getCat(r.cat);
       const twdAmt=toTHB(r.amount,r.curr);
@@ -2180,23 +2208,23 @@ function filterByUser(list,userFilter){
 }
 function refreshToday(){
   const t=today(),list=records.filter(r=>r.date===t);
-  const expenses=expenseRecords(list);
-  document.getElementById('today-total').textContent=Math.round(expenses.reduce((s,r)=>s+toTHB(r.amount,r.curr),0)).toLocaleString();
-  document.getElementById('today-count').textContent=expenses.length;
+  const visibleList=filterByUser(list,todayUserFilter);
+  const expenses=expenseRecords(visibleList);
+  setHeroBalance('today',visibleList);
   renderCompare(expenses,'today-compare');
   renderBars(expenses,'today-bars');
   buildUserTabs('today-user-tabs',todayUserFilter,(f)=>{todayUserFilter=f;refreshToday();});
-  renderEntries(filterByUser(list,todayUserFilter),'today-list');
+  renderEntries(visibleList,'today-list');
 }
 function refreshMonth(){
   const m=thisMonth(),list=records.filter(r=>r.date.startsWith(m));
-  const expenses=expenseRecords(list);
-  document.getElementById('month-total').textContent=Math.round(expenses.reduce((s,r)=>s+toTHB(r.amount,r.curr),0)).toLocaleString();
-  document.getElementById('month-count').textContent=expenses.length;
+  const visibleList=filterByUser(list,monthUserFilter);
+  const expenses=expenseRecords(visibleList);
+  setHeroBalance('month',visibleList);
   renderMonthBudget(expenses,m,'month-budget-section');
   renderBars(expenses,'month-bars');
   buildUserTabs('month-user-tabs',monthUserFilter,(f)=>{monthUserFilter=f;refreshMonth();});
-  renderEntries(filterByUser(list,monthUserFilter),'month-list');
+  renderEntries(visibleList,'month-list');
 }
 function refreshReport(){buildCatFilters('rep-cat-filter',repCatFilter,(id)=>{repCatFilter=id;refreshReport();});buildTripFilter();}
 function runReport(){
@@ -2209,12 +2237,13 @@ function runReport(){
   if(repCatFilter)list=list.filter(r=>r.cat===repCatFilter);
   if(repTripFilter)list=list.filter(r=>r.trip===repTripFilter);
   const expenses=expenseRecords(list);
-  const incomes=incomeRecords(list);
-  const total=expenses.reduce((s,r)=>s+toTHB(r.amount,r.curr),0);
-  const incomeTotal=incomes.reduce((s,r)=>s+toTHB(r.amount,r.curr),0);
+  const totals=moneyTotals(list);
   document.getElementById('rep-result').style.display='block';
-  document.getElementById('rep-total').textContent=Math.round(total).toLocaleString();
-  document.getElementById('rep-sub').textContent=list.length+T('count_sub')+' · '+from+' ~ '+to+' · '+T('income_total')+' '+fmtTHB(incomeTotal);
+  const repTotal=document.getElementById('rep-total');
+  repTotal.textContent=fmtBalanceNumber(totals.balance);
+  repTotal.classList.remove('balance-positive','balance-negative');
+  const cls=balanceClass(totals.balance);if(cls)repTotal.classList.add(cls);
+  document.getElementById('rep-sub').textContent=list.length+T('count_sub')+' · '+from+' ~ '+to+' · '+balanceBreakdown(totals);
   renderCompare(expenses,'rep-compare');
   renderCategoryPie(expenses,'rep-pie-wrap','rep-pie-body');
   renderCategoryTreemap(expenses,'rep-tree-wrap','rep-tree-body');
