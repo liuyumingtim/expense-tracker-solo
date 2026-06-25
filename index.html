@@ -256,6 +256,26 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
   border-radius:999px;background:var(--surface2);color:var(--ink-2);font-size:10px;font-weight:800;
 }
 .kind-chip.income{background:var(--ok-soft);color:var(--ok)}
+.summary-grid{display:grid;grid-template-columns:1fr;gap:9px;margin-bottom:14px}
+.summary-card{width:100%;text-align:left;border:1px solid var(--border);background:var(--surface);border-radius:var(--radius-sm);padding:13px 14px;box-shadow:var(--shadow-sm);font-family:var(--sans);cursor:pointer;color:var(--ink);transition:all 0.18s}
+.summary-card:active{transform:scale(0.98);background:var(--surface2)}
+.summary-card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:14px;font-weight:900;color:var(--ink);margin-bottom:9px}
+.summary-card-title span:last-child{font-size:10.5px;font-weight:800;color:var(--ink-3);white-space:nowrap}
+.summary-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.summary-metric{border-radius:10px;background:var(--surface2);padding:8px 7px}
+.summary-metric .label{font-size:9px;font-weight:900;color:var(--ink-3);letter-spacing:0.12em;text-transform:uppercase;margin-bottom:3px}
+.summary-metric .value{font-size:12.5px;font-weight:900;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.summary-metric.balance .value{font-size:13.5px}
+.summary-note{font-size:10.5px;font-weight:800;color:var(--accent);margin-top:8px}
+.summary-modal .summary-card{cursor:default}
+.summary-modal .summary-card:active{transform:none;background:var(--surface)}
+.summary-detail-list{border-top:1px solid var(--border);margin-top:12px}
+.summary-detail-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
+.summary-detail-main{min-width:0}
+.summary-detail-name{font-size:13px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.summary-detail-meta{font-size:10.5px;font-weight:700;color:var(--ink-3);margin-top:3px}
+.summary-detail-amt{font-size:13px;font-weight:900;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.summary-detail-amt.income{color:var(--ok)}
 .entry.income .entry-icon{background:var(--ok-soft)}
 .entry.income .entry-orig{color:var(--ok)}
 .entry.income .entry-orig::before{content:'+'}
@@ -307,7 +327,10 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 /* ── Date row ── */
 .date-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .day-group{margin-bottom:6px}
-.day-header{font-size:11.5px;font-weight:700;color:var(--ink-3);padding:16px 2px 6px;letter-spacing:0.04em;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--border);margin-bottom:2px}
+.day-header{font-size:11.5px;font-weight:700;color:var(--ink-3);padding:16px 2px 6px;letter-spacing:0.04em;display:flex;justify-content:space-between;gap:8px;align-items:center;font-variant-numeric:tabular-nums;border-bottom:1px solid var(--border);margin-bottom:2px}
+.day-summary-btn{cursor:pointer}
+.day-header-main{flex:1;min-width:0;line-height:1.55}
+.day-header-action{font-size:10px;font-weight:900;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:3px 8px;white-space:nowrap}
 
 /* ── Rate row ── */
 .rate-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:9px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border)}
@@ -481,6 +504,16 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
   </div>
 </div>
 
+<!-- Summary Modal -->
+<div class="modal-overlay hidden" id="summary-modal">
+  <div class="modal summary-modal">
+    <h2 id="summary-title">團別總結</h2>
+    <p id="summary-subtitle"></p>
+    <div id="summary-body"></div>
+    <button class="secondary-btn" id="summary-close-btn" style="margin-top:12px;margin-bottom:0">關閉</button>
+  </div>
+</div>
+
 <!-- ADD -->
 <div id="screen-add" class="screen active">
   <div class="topbar">
@@ -582,6 +615,10 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       <div class="hero-amt"><span class="hero-cur">NT$</span><span class="hero-value num" id="today-total">0</span></div>
       <div class="stat-sub num" id="today-stat-sub">新台幣</div>
     </div>
+    <div id="today-trip-summary-wrap" style="display:none">
+      <div class="section-title" id="today-trip-summary-title">團別總結</div>
+      <div id="today-trip-summary"></div>
+    </div>
     <div id="today-compare"></div>
     <div id="today-bars"></div>
     <div class="section-title" id="today-detail-title">明細</div>
@@ -602,6 +639,10 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       </div>
       <div class="hero-amt"><span class="hero-cur">NT$</span><span class="hero-value num" id="month-total">0</span></div>
       <div class="stat-sub num" id="month-stat-sub">新台幣</div>
+    </div>
+    <div id="month-trip-summary-wrap" style="display:none">
+      <div class="section-title" id="month-trip-summary-title">團別總結</div>
+      <div id="month-trip-summary"></div>
     </div>
     <div class="section-title" id="month-cat-title">各類別分析</div>
     <div id="month-bars"></div>
@@ -633,6 +674,10 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
         <div class="stat-label">期間合計 (NT$)</div>
         <div class="total-big" id="rep-total">0</div>
         <div style="font-size:12px;color:var(--ink-3);margin-top:4px" id="rep-sub"></div>
+      </div>
+      <div id="rep-trip-summary-wrap" style="display:none;margin-bottom:16px">
+        <div class="section-title" id="rep-trip-summary-title">團別總結</div>
+        <div id="rep-trip-summary"></div>
       </div>
       <div id="rep-compare"></div>
       <div id="rep-pie-wrap" style="display:none;margin-bottom:16px">
@@ -809,6 +854,7 @@ const I18N={
     month_total:'本月結餘 (NT$)',
     report_total:'期間結餘 (NT$)',
     sec_details:'明細',sec_cat_analysis:'各類別分析',sec_compare:'花費比較',sec_budget:'個人預算',
+    sec_trip_summary:'團別總結',summary_open:'點一下看明細',summary_close:'關閉',day_summary_hint:'日期總結',
     start_date:'開始日期',end_date:'結束日期',filter_cat:'類別篩選',filter_trip:'團別篩選',btn_search:'查詢',
     all_cats:'全部',
     sec_users:'你的名字',lbl_user1:'你的名字',lbl_user2:'使用者 2',btn_save_users:'儲存名稱',
@@ -891,6 +937,7 @@ const I18N={
     month_total:'Monthly Balance (NT$)',
     report_total:'Period Balance (NT$)',
     sec_details:'Details',sec_cat_analysis:'Category Analysis',sec_compare:'Expense Comparison',sec_budget:'Personal Budget',
+    sec_trip_summary:'Tour Summary',summary_open:'Tap for details',summary_close:'Close',day_summary_hint:'Date summary',
     start_date:'Start Date',end_date:'End Date',filter_cat:'Category Filter',filter_trip:'Tour Filter',btn_search:'Search',
     all_cats:'All',
     sec_users:'Your Name',lbl_user1:'Your Name',lbl_user2:'User 2',btn_save_users:'Save Names',
@@ -1249,18 +1296,20 @@ function applyLang(){
   document.getElementById('today-stat-lbl').textContent=T('today_total');
   document.getElementById('today-stat-sub').textContent=T('today_sub');
   document.getElementById('today-count-sub').textContent=T('count_sub');
-  document.querySelector('#screen-today .section-title').textContent=T('sec_details');
+  document.getElementById('today-trip-summary-title').textContent=T('sec_trip_summary');
+  document.getElementById('today-detail-title').textContent=T('sec_details');
   document.getElementById('month-stat-lbl').textContent=T('month_total');
   document.getElementById('month-stat-sub').textContent=T('today_sub');
   document.getElementById('month-count-sub').textContent=T('count_sub');
-  document.querySelectorAll('#screen-month .section-title').forEach((el,i)=>{
-    el.textContent=[T('sec_cat_analysis'),T('sec_details')][i]||el.textContent;
-  });
+  document.getElementById('month-trip-summary-title').textContent=T('sec_trip_summary');
+  document.getElementById('month-cat-title').textContent=T('sec_cat_analysis');
+  document.getElementById('month-detail-title').textContent=T('sec_details');
   document.querySelectorAll('#screen-report .form-label').forEach((el,i)=>{
     [T('start_date'),T('end_date'),T('filter_cat'),T('filter_trip')].forEach((v,j)=>{if(i===j)el.textContent=v;});
   });
   document.getElementById('rep-run-btn').textContent=T('btn_search');
   document.querySelector('#rep-total').closest('.card').querySelector('.stat-label').textContent=T('report_total');
+  document.getElementById('rep-trip-summary-title').textContent=T('sec_trip_summary');
   const repChartTitle=document.getElementById('rep-chart-title');
   if(repChartTitle)repChartTitle.textContent=T('chart_daily');
   const repPieTitle=document.getElementById('rep-pie-title');
@@ -1302,6 +1351,7 @@ function applyLang(){
   document.querySelector('#budget-modal h2').textContent=T('modal_budget_title');
   document.getElementById('budget-save-btn').textContent=T('btn_save_budget');
   document.getElementById('budget-cancel-btn').textContent=T('btn_cancel');
+  document.getElementById('summary-close-btn').textContent=T('summary_close');
   document.querySelector('#identity-modal h2').textContent=T('identity_title');
   document.querySelector('#identity-modal p').textContent=T('identity_desc');
   buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
@@ -1661,6 +1711,79 @@ function setHeroBalance(prefix,list){
   count.textContent=list.length;
   return totals;
 }
+function tripNameOf(r){return String(r&&r.trip||'').trim()||T('trip_none');}
+function tripGroups(list){
+  const groups={};
+  list.forEach(r=>{
+    const name=tripNameOf(r);
+    if(!groups[name])groups[name]={name,records:[],last:0};
+    groups[name].records.push(r);
+    groups[name].last=Math.max(groups[name].last,Number(r.ts)||0);
+  });
+  return Object.values(groups).map(g=>({...g,totals:moneyTotals(g.records)})).sort((a,b)=>b.last-a.last||a.name.localeCompare(b.name));
+}
+function summaryMetricHtml(label,value,cls=''){
+  return `<div class="summary-metric ${cls}"><div class="label">${escapeHtml(label)}</div><div class="value ${cls==='balance'?balanceClass(value):''}">${cls==='balance'?fmtBalanceNumber(value):fmtTHB(value)}</div></div>`;
+}
+function summaryCardHtml(group,showHint=true){
+  const t=group.totals;
+  return `
+    <div class="summary-card-title"><span>${escapeHtml(group.name)}</span><span>${group.records.length}${T('count_sub')}</span></div>
+    <div class="summary-metrics">
+      ${summaryMetricHtml(T('income_total'),t.income)}
+      ${summaryMetricHtml(T('expense_total'),t.expense)}
+      ${summaryMetricHtml(T('balance_total'),t.balance,'balance')}
+    </div>
+    ${showHint?`<div class="summary-note">${T('summary_open')}</div>`:''}`;
+}
+function renderTripSummary(list,cid,opts={}){
+  const el=document.getElementById(cid);if(!el)return;
+  const wrap=opts.wrapId?document.getElementById(opts.wrapId):null;
+  const groups=tripGroups(list);
+  if(wrap)wrap.style.display=groups.length?'block':'none';
+  if(!groups.length){el.innerHTML='';return;}
+  el.innerHTML=`<div class="summary-grid">${groups.map((g,i)=>`<button type="button" class="summary-card" data-i="${i}">${summaryCardHtml(g,true)}</button>`).join('')}</div>`;
+  el.querySelectorAll('.summary-card').forEach(btn=>{
+    btn.onclick=()=>{
+      const group=groups[Number(btn.dataset.i)];
+      openSummaryModal(group.name,group.records,opts.subtitle||T('sec_trip_summary'));
+    };
+  });
+}
+function compactEntryRows(list){
+  return list.slice().sort((a,b)=>(b.ts||0)-(a.ts||0)).map(r=>{
+    const cat=getCat(r.cat);
+    const amt=toTHB(r.amount,r.curr);
+    const trip=r.trip?` · ${escapeHtml(r.trip)}`:'';
+    const kind=isIncome(r)?T('kind_income'):T('kind_expense');
+    const cls=isIncome(r)?'income':'';
+    const sign=isIncome(r)?'+':'-';
+    return `
+      <div class="summary-detail-row">
+        <div class="summary-detail-main">
+          <div class="summary-detail-name">${cat.icon} ${escapeHtml(r.note||cat.label)}</div>
+          <div class="summary-detail-meta">${escapeHtml(r.date)} · ${escapeHtml(kind)} · ${escapeHtml(cat.label)}${trip}</div>
+        </div>
+        <div class="summary-detail-amt ${cls}">${sign}${fmtAmt(r.amount,r.curr)}${r.curr!=='TWD'?`<div class="entry-aux">≈ ${fmtTHB(amt)}</div>`:''}</div>
+      </div>`;
+  }).join('');
+}
+function openSummaryModal(title,list,subtitle=''){
+  const modal=document.getElementById('summary-modal');
+  const body=document.getElementById('summary-body');
+  const totals=moneyTotals(list);
+  const groups=tripGroups(list);
+  document.getElementById('summary-title').textContent=title;
+  document.getElementById('summary-subtitle').textContent=subtitle||`${list.length}${T('count_sub')}`;
+  body.innerHTML=`
+    <div class="summary-grid">
+      <div class="summary-card">${summaryCardHtml({name:T('balance_total'),records:list,totals},false)}</div>
+    </div>
+    ${groups.length>1?`<div class="section-title">${T('sec_trip_summary')}</div><div class="summary-grid">${groups.map(g=>`<div class="summary-card">${summaryCardHtml(g,false)}</div>`).join('')}</div>`:''}
+    <div class="section-title">${T('sec_details')}</div>
+    <div class="summary-detail-list">${compactEntryRows(list)||`<div class="empty">${T('no_records')}</div>`}</div>`;
+  modal.classList.remove('hidden');
+}
 function activeCats(kind=entryKind){return kind==='income'?INCOME_CATS:CATS;}
 function activePrimaryCats(kind=entryKind){return kind==='income'?PRIMARY_INCOME_CATS:PRIMARY_CATS;}
 function getCat(id){const c=[...CATS,...INCOME_CATS].find(x=>x.id===id);if(c)return{...c,label:T(c.lkey)};return{id,label:id,icon:'📌',color:'#f5f5f0'};}
@@ -1853,6 +1976,8 @@ function openEditModal(id){
 
 // ===== 預算 Modal =====
 document.getElementById('budget-cancel-btn').onclick=()=>document.getElementById('budget-modal').classList.add('hidden');
+document.getElementById('summary-close-btn').onclick=()=>document.getElementById('summary-modal').classList.add('hidden');
+document.getElementById('summary-modal').onclick=(e)=>{if(e.target.id==='summary-modal')document.getElementById('summary-modal').classList.add('hidden');};
 document.getElementById('budget-save-btn').onclick=()=>{
   const m=thisMonth();
   const b0=parseFloat(document.getElementById('budget-input-0').value)||0;
@@ -2049,7 +2174,13 @@ function renderEntries(list,cid){
     const ds=parts[0]+'/'+parts[1]+'/'+parts[2];
     const totals=moneyTotals(byDate[date]);
     const balanceText=` · ${T('balance_total')} ${fmtBalanceNumber(totals.balance)}`;
-    grp.innerHTML=`<div class="day-header">${ds} — ${T('income_total')} ${fmtTHB(totals.income)} · ${T('expense_total')} ${fmtTHB(totals.expense)}${balanceText}</div>`;
+    const hd=document.createElement('div');
+    hd.className='day-header day-summary-btn';
+    hd.tabIndex=0;
+    hd.innerHTML=`<span class="day-header-main">${ds} — ${T('income_total')} ${fmtTHB(totals.income)} · ${T('expense_total')} ${fmtTHB(totals.expense)}${balanceText}</span><span class="day-header-action">${T('summary_open')}</span>`;
+    hd.onclick=()=>openSummaryModal(`${ds} ${T('day_summary_hint')}`,byDate[date],`${byDate[date].length}${T('count_sub')}`);
+    hd.onkeydown=(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();hd.click();}};
+    grp.appendChild(hd);
     byDate[date].sort((a,b)=>(b.ts||0)-(a.ts||0)).forEach(r=>{
       const cat=getCat(r.cat);
       const twdAmt=toTHB(r.amount,r.curr);
@@ -2211,6 +2342,7 @@ function refreshToday(){
   const visibleList=filterByUser(list,todayUserFilter);
   const expenses=expenseRecords(visibleList);
   setHeroBalance('today',visibleList);
+  renderTripSummary(visibleList,'today-trip-summary',{wrapId:'today-trip-summary-wrap',subtitle:T('title_today')});
   renderCompare(expenses,'today-compare');
   renderBars(expenses,'today-bars');
   buildUserTabs('today-user-tabs',todayUserFilter,(f)=>{todayUserFilter=f;refreshToday();});
@@ -2221,6 +2353,7 @@ function refreshMonth(){
   const visibleList=filterByUser(list,monthUserFilter);
   const expenses=expenseRecords(visibleList);
   setHeroBalance('month',visibleList);
+  renderTripSummary(visibleList,'month-trip-summary',{wrapId:'month-trip-summary-wrap',subtitle:T('title_month')});
   renderMonthBudget(expenses,m,'month-budget-section');
   renderBars(expenses,'month-bars');
   buildUserTabs('month-user-tabs',monthUserFilter,(f)=>{monthUserFilter=f;refreshMonth();});
@@ -2244,6 +2377,7 @@ function runReport(){
   repTotal.classList.remove('balance-positive','balance-negative');
   const cls=balanceClass(totals.balance);if(cls)repTotal.classList.add(cls);
   document.getElementById('rep-sub').textContent=list.length+T('count_sub')+' · '+from+' ~ '+to+' · '+balanceBreakdown(totals);
+  renderTripSummary(list,'rep-trip-summary',{wrapId:'rep-trip-summary-wrap',subtitle:from+' ~ '+to});
   renderCompare(expenses,'rep-compare');
   renderCategoryPie(expenses,'rep-pie-wrap','rep-pie-body');
   renderCategoryTreemap(expenses,'rep-tree-wrap','rep-tree-body');
