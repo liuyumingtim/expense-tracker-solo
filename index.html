@@ -841,7 +841,7 @@ const I18N={
     nav_add:'新增',nav_today:'今日',nav_month:'本月',nav_report:'查詢',nav_settings:'設定',
     title_add:'錢錢有進有出',title_today:'今日支出',title_month:'本月總覽',title_report:'自訂查詢',title_settings:'設定 / 匯率',
     settings_subtitle:'依台灣中央銀行牌告匯率',
-    report_subtitle:'選擇期間與分類',
+    report_subtitle:'可選日期、類別或團別',
     who_paid:'誰支出的？',
     lbl_trip:'團別 / 地區',trip_none:'不指定團別',trip_new:'＋ 新增這一團',trip_placeholder:'例：越南峴港團、泰國曼谷團',
     lbl_entry_kind:'記錄類型',kind_expense:'日常支出',kind_income:'小費 / 收入',
@@ -857,9 +857,9 @@ const I18N={
     sec_details:'明細',sec_cat_analysis:'各類別分析',sec_compare:'花費比較',sec_budget:'個人預算',
     sec_trip_summary:'團別總結',summary_open:'點一下看明細',summary_close:'關閉',day_summary_hint:'日期總結',
     start_date:'開始日期',end_date:'結束日期',filter_cat:'類別篩選',filter_trip:'團別篩選',btn_search:'查詢',
-    report_trip_no_date:'選團別可不填日期，會查該團全部資料',all_dates:'全部日期',
+    report_trip_no_date:'不填日期會查全部日期；選團別會查該團全部資料',all_dates:'全部日期',
     report_need_filter:'請選擇日期範圍或團別',report_bad_date:'開始日期不能晚於結束日期',
-    all_cats:'全部',
+    all_cats:'全部',all_trips:'全部團別',
     sec_users:'你的名字',lbl_user1:'你的名字',lbl_user2:'使用者 2',btn_save_users:'儲存名稱',
     device_identity:'此裝置身分：',btn_change_identity:'更改此裝置身分',
     sec_lang:'語言 / Language',
@@ -926,7 +926,7 @@ const I18N={
     nav_add:'Add',nav_today:'Today',nav_month:'Month',nav_report:'Report',nav_settings:'Settings',
     title_add:'Add Record',title_today:"Today's Expense",title_month:'Monthly Overview',title_report:'Custom Report',title_settings:'Settings / Rates',
     settings_subtitle:'Taiwan Central Bank Exchange Rates',
-    report_subtitle:'Select period & category',
+    report_subtitle:'Filter by date, category, or tour',
     who_paid:'Who paid?',
     lbl_trip:'Tour / Area',trip_none:'No tour',trip_new:'＋ Add tour',trip_placeholder:'e.g. Vietnam Da Nang tour',
     lbl_entry_kind:'Record type',kind_expense:'Expense',kind_income:'Tips / Income',
@@ -942,9 +942,9 @@ const I18N={
     sec_details:'Details',sec_cat_analysis:'Category Analysis',sec_compare:'Expense Comparison',sec_budget:'Personal Budget',
     sec_trip_summary:'Tour Summary',summary_open:'Tap for details',summary_close:'Close',day_summary_hint:'Date summary',
     start_date:'Start Date',end_date:'End Date',filter_cat:'Category Filter',filter_trip:'Tour Filter',btn_search:'Search',
-    report_trip_no_date:'Choose a tour to search all dates without setting a date range',all_dates:'All dates',
+    report_trip_no_date:'Leave dates empty to search all dates; choose a tour to search that tour only',all_dates:'All dates',
     report_need_filter:'Please choose a date range or tour',report_bad_date:'Start date cannot be later than end date',
-    all_cats:'All',
+    all_cats:'All',all_trips:'All tours',
     sec_users:'Your Name',lbl_user1:'Your Name',lbl_user2:'User 2',btn_save_users:'Save Names',
     device_identity:'This device: ',btn_change_identity:'Change Device Identity',
     sec_lang:'Language / 語言',
@@ -1878,7 +1878,7 @@ function buildTripFilter(){
     ...tripMemory,
     ...records.filter(r=>r.trip).map(r=>({name:r.trip,ts:r.ts||Date.now()}))
   ]);
-  sel.innerHTML=`<option value="">${T('all_cats')}</option>`;
+  sel.innerHTML=`<option value="">${T('all_trips')}</option>`;
   allTrips.forEach(t=>{
     const o=document.createElement('option');o.value=t.name;o.textContent=t.name;
     if(repTripFilter===t.name)o.selected=true;
@@ -1892,14 +1892,8 @@ document.getElementById('trip-select').onchange=toggleTripCustom;
 });
 document.getElementById('rep-trip-filter').onchange=function(){
   repTripFilter=this.value||null;
-  if(repTripFilter){
-    document.getElementById('rep-from').value='';
-    document.getElementById('rep-to').value='';
-  }else if(!document.getElementById('rep-from').value&&!document.getElementById('rep-to').value){
-    const d=new Date();d.setDate(1);
-    document.getElementById('rep-from').value=d.toISOString().split('T')[0];
-    document.getElementById('rep-to').value=today();
-  }
+  document.getElementById('rep-from').value='';
+  document.getElementById('rep-to').value='';
   runReport({silent:true});
 };
 function setEntryKind(kind){
@@ -2411,11 +2405,6 @@ function refreshReport(){
 }
 function runReport(opts={}){
   const from=document.getElementById('rep-from').value,to=document.getElementById('rep-to').value;
-  if(!repTripFilter&&!from&&!to){
-    if(opts.silent)document.getElementById('rep-result').style.display='none';
-    else alert(T('report_need_filter'));
-    return;
-  }
   if(from&&to&&from>to){if(!opts.silent)alert(T('report_bad_date'));return;}
   const cw=document.getElementById('rep-chart-wrap');if(cw)cw.style.display='none';
   const pw=document.getElementById('rep-pie-wrap');if(pw)pw.style.display='none';
@@ -2588,9 +2577,8 @@ document.getElementById('today-date').textContent=ds;
 document.getElementById('today-label').textContent=ds;
 document.getElementById('month-label').textContent=now.getFullYear()+'年'+(now.getMonth()+1)+'月';
 document.getElementById('inp-date').value=today();
-const d1=new Date();d1.setDate(1);
-document.getElementById('rep-from').value=d1.toISOString().split('T')[0];
-document.getElementById('rep-to').value=today();
+document.getElementById('rep-from').value='';
+document.getElementById('rep-to').value='';
 
 loadLocal();buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
 buildCatFilters('rep-cat-filter',repCatFilter,(id)=>{repCatFilter=id;refreshReport();});
