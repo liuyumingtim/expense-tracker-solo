@@ -282,7 +282,7 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 
 /* ── Note suggestions ── */
 .note-wrap{position:relative}
-.note-suggestions{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1.5px solid var(--accent);border-top:none;border-radius:0 0 var(--radius-sm) var(--radius-sm);z-index:50;display:none;max-height:180px;overflow-y:auto;box-shadow:var(--shadow-lg)}
+.note-suggestions{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);display:none;max-height:132px;overflow-y:auto;box-shadow:var(--shadow-sm);margin-top:8px}
 .note-suggestions.show{display:block}
 .note-sug-item{padding:11px 16px;font-size:14px;font-weight:600;color:var(--ink);cursor:pointer;border-bottom:1px solid var(--border)}
 .note-sug-item:last-child{border-bottom:none}
@@ -660,6 +660,7 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       <div><label class="form-label">開始日期</label><input type="date" class="form-input" id="rep-from"></div>
       <div><label class="form-label">結束日期</label><input type="date" class="form-input" id="rep-to"></div>
     </div>
+    <div class="summary-note" id="rep-date-hint" style="margin:-6px 2px 14px">選團別可不填日期，會查該團全部資料</div>
     <div class="form-group">
       <label class="form-label">類別篩選</label>
       <div class="cat-filter-wrap" id="rep-cat-filter"></div>
@@ -807,7 +808,7 @@ const INCOME_CATS=[
 const PRIMARY_CATS=['food','drink','transport','shopping','home','travel'];
 const PRIMARY_INCOME_CATS=['income_tip','income_fee','income_refund','income_other'];
 const QUICK_CURR=['TWD','THB','VND','USD'];
-const TRIP_MAX=4;
+const TRIP_MAX=3;
 const TRIP_EXPIRE_DAYS=120;
 const CURRENCIES=[
   {code:'TWD',name:'新台幣',symbol:'NT$',rate:1},
@@ -856,6 +857,8 @@ const I18N={
     sec_details:'明細',sec_cat_analysis:'各類別分析',sec_compare:'花費比較',sec_budget:'個人預算',
     sec_trip_summary:'團別總結',summary_open:'點一下看明細',summary_close:'關閉',day_summary_hint:'日期總結',
     start_date:'開始日期',end_date:'結束日期',filter_cat:'類別篩選',filter_trip:'團別篩選',btn_search:'查詢',
+    report_trip_no_date:'選團別可不填日期，會查該團全部資料',all_dates:'全部日期',
+    report_need_filter:'請選擇日期範圍或團別',report_bad_date:'開始日期不能晚於結束日期',
     all_cats:'全部',
     sec_users:'你的名字',lbl_user1:'你的名字',lbl_user2:'使用者 2',btn_save_users:'儲存名稱',
     device_identity:'此裝置身分：',btn_change_identity:'更改此裝置身分',
@@ -939,6 +942,8 @@ const I18N={
     sec_details:'Details',sec_cat_analysis:'Category Analysis',sec_compare:'Expense Comparison',sec_budget:'Personal Budget',
     sec_trip_summary:'Tour Summary',summary_open:'Tap for details',summary_close:'Close',day_summary_hint:'Date summary',
     start_date:'Start Date',end_date:'End Date',filter_cat:'Category Filter',filter_trip:'Tour Filter',btn_search:'Search',
+    report_trip_no_date:'Choose a tour to search all dates without setting a date range',all_dates:'All dates',
+    report_need_filter:'Please choose a date range or tour',report_bad_date:'Start date cannot be later than end date',
     all_cats:'All',
     sec_users:'Your Name',lbl_user1:'Your Name',lbl_user2:'User 2',btn_save_users:'Save Names',
     device_identity:'This device: ',btn_change_identity:'Change Device Identity',
@@ -1308,6 +1313,7 @@ function applyLang(){
     [T('start_date'),T('end_date'),T('filter_cat'),T('filter_trip')].forEach((v,j)=>{if(i===j)el.textContent=v;});
   });
   document.getElementById('rep-run-btn').textContent=T('btn_search');
+  document.getElementById('rep-date-hint').textContent=T('report_trip_no_date');
   document.querySelector('#rep-total').closest('.card').querySelector('.stat-label').textContent=T('report_total');
   document.getElementById('rep-trip-summary-title').textContent=T('sec_trip_summary');
   const repChartTitle=document.getElementById('rep-chart-title');
@@ -1591,19 +1597,22 @@ function addNoteMemory(catId,note){
 function updateNoteSuggestions(){
   const input=document.getElementById('inp-note').value;
   const catId=selCat==='other'?(document.getElementById('inp-custom-cat').value.trim()||'other'):selCat;
-  const sugs=(noteMemory[catId]||[]).filter(n=>!input||n.toLowerCase().includes(input.toLowerCase()));
+  const sugs=(noteMemory[catId]||[]).filter(n=>!input||n.toLowerCase().includes(input.toLowerCase())).slice(0,5);
   const box=document.getElementById('note-suggestions');
   if(!sugs.length){box.className='note-suggestions';return;}
   box.innerHTML='';
   sugs.forEach(s=>{
     const d=document.createElement('div');d.className='note-sug-item';d.textContent=s;
-    d.onmousedown=()=>{document.getElementById('inp-note').value=s;box.className='note-suggestions';};
+    d.onpointerdown=(e)=>{e.preventDefault();document.getElementById('inp-note').value=s;box.className='note-suggestions';};
     box.appendChild(d);
   });
   box.className='note-suggestions show';
 }
 document.getElementById('inp-note').oninput=updateNoteSuggestions;
-document.getElementById('inp-note').onfocus=updateNoteSuggestions;
+document.getElementById('inp-note').onfocus=()=>{
+  updateNoteSuggestions();
+  setTimeout(()=>document.getElementById('inp-note').scrollIntoView({block:'center',behavior:'smooth'}),220);
+};
 document.getElementById('inp-note').onblur=()=>{setTimeout(()=>{document.getElementById('note-suggestions').className='note-suggestions';},150);};
 
 // ===== 計算機 =====
@@ -1739,6 +1748,8 @@ function summaryCardHtml(group,showHint=true){
 function renderTripSummary(list,cid,opts={}){
   const el=document.getElementById(cid);if(!el)return;
   const wrap=opts.wrapId?document.getElementById(opts.wrapId):null;
+  const hasNamedTrip=list.some(r=>String(r.trip||'').trim());
+  if(!hasNamedTrip){if(wrap)wrap.style.display='none';el.innerHTML='';return;}
   const groups=tripGroups(list);
   if(wrap)wrap.style.display=groups.length?'block':'none';
   if(!groups.length){el.innerHTML='';return;}
@@ -1803,6 +1814,16 @@ function cleanTripMemory(items){
   });
   return Object.values(map).sort((a,b)=>b.ts-a.ts).slice(0,TRIP_MAX);
 }
+function uniqueTrips(items){
+  const map={};
+  (Array.isArray(items)?items:[]).forEach(item=>{
+    const name=String(item&&item.name||item||'').trim();
+    if(!name)return;
+    const ts=Number(item&&item.ts)||0;
+    if(!map[name]||map[name].ts<ts)map[name]={name,ts};
+  });
+  return Object.values(map).sort((a,b)=>b.ts-a.ts||a.name.localeCompare(b.name));
+}
 function mergeTripMemory(a,b){return cleanTripMemory([...(a||[]),...(b||[])]);}
 function saveTripMemory(){localStorage.setItem('xp_trip_memory',JSON.stringify(tripMemory));}
 function rememberTrip(name){
@@ -1853,7 +1874,7 @@ function toggleTripCustom(){
 }
 function buildTripFilter(){
   const sel=document.getElementById('rep-trip-filter');if(!sel)return;
-  const allTrips=cleanTripMemory([
+  const allTrips=uniqueTrips([
     ...tripMemory,
     ...records.filter(r=>r.trip).map(r=>({name:r.trip,ts:r.ts||Date.now()}))
   ]);
@@ -1865,7 +1886,22 @@ function buildTripFilter(){
   });
 }
 document.getElementById('trip-select').onchange=toggleTripCustom;
-document.getElementById('rep-trip-filter').onchange=function(){repTripFilter=this.value||null;runReport();};
+['rep-from','rep-to'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el)el.onchange=()=>{if(reportVisible())runReport({silent:true});};
+});
+document.getElementById('rep-trip-filter').onchange=function(){
+  repTripFilter=this.value||null;
+  if(repTripFilter){
+    document.getElementById('rep-from').value='';
+    document.getElementById('rep-to').value='';
+  }else if(!document.getElementById('rep-from').value&&!document.getElementById('rep-to').value){
+    const d=new Date();d.setDate(1);
+    document.getElementById('rep-from').value=d.toISOString().split('T')[0];
+    document.getElementById('rep-to').value=today();
+  }
+  runReport({silent:true});
+};
 function setEntryKind(kind){
   entryKind=kind==='income'?'income':'expense';
   if(entryKind==='income')selCat=selIncomeCat||'income_tip';
@@ -2359,14 +2395,34 @@ function refreshMonth(){
   buildUserTabs('month-user-tabs',monthUserFilter,(f)=>{monthUserFilter=f;refreshMonth();});
   renderEntries(visibleList,'month-list');
 }
-function refreshReport(){buildCatFilters('rep-cat-filter',repCatFilter,(id)=>{repCatFilter=id;refreshReport();});buildTripFilter();}
-function runReport(){
+function reportVisible(){return document.getElementById('rep-result').style.display!=='none';}
+function reportRangeLabel(from,to){
+  if(from&&to)return from+' ~ '+to;
+  if(from)return from+' ~ '+T('all_dates');
+  if(to)return T('all_dates')+' ~ '+to;
+  return T('all_dates');
+}
+function refreshReport(){
+  buildCatFilters('rep-cat-filter',repCatFilter,(id)=>{
+    repCatFilter=id;refreshReport();
+    if(reportVisible())runReport({silent:true});
+  });
+  buildTripFilter();
+}
+function runReport(opts={}){
   const from=document.getElementById('rep-from').value,to=document.getElementById('rep-to').value;
-  if(!from||!to){alert('請選擇日期範圍');return;}
+  if(!repTripFilter&&!from&&!to){
+    if(opts.silent)document.getElementById('rep-result').style.display='none';
+    else alert(T('report_need_filter'));
+    return;
+  }
+  if(from&&to&&from>to){if(!opts.silent)alert(T('report_bad_date'));return;}
   const cw=document.getElementById('rep-chart-wrap');if(cw)cw.style.display='none';
   const pw=document.getElementById('rep-pie-wrap');if(pw)pw.style.display='none';
   const tw=document.getElementById('rep-tree-wrap');if(tw)tw.style.display='none';
-  let list=records.filter(r=>r.date>=from&&r.date<=to);
+  let list=records.slice();
+  if(from)list=list.filter(r=>r.date>=from);
+  if(to)list=list.filter(r=>r.date<=to);
   if(repCatFilter)list=list.filter(r=>r.cat===repCatFilter);
   if(repTripFilter)list=list.filter(r=>r.trip===repTripFilter);
   const expenses=expenseRecords(list);
@@ -2376,13 +2432,14 @@ function runReport(){
   repTotal.textContent=fmtBalanceNumber(totals.balance);
   repTotal.classList.remove('balance-positive','balance-negative');
   const cls=balanceClass(totals.balance);if(cls)repTotal.classList.add(cls);
-  document.getElementById('rep-sub').textContent=list.length+T('count_sub')+' · '+from+' ~ '+to+' · '+balanceBreakdown(totals);
-  renderTripSummary(list,'rep-trip-summary',{wrapId:'rep-trip-summary-wrap',subtitle:from+' ~ '+to});
+  const rangeLabel=reportRangeLabel(from,to);
+  document.getElementById('rep-sub').textContent=list.length+T('count_sub')+' · '+rangeLabel+' · '+balanceBreakdown(totals);
+  renderTripSummary(list,'rep-trip-summary',{wrapId:'rep-trip-summary-wrap',subtitle:rangeLabel});
   renderCompare(expenses,'rep-compare');
   renderCategoryPie(expenses,'rep-pie-wrap','rep-pie-body');
   renderCategoryTreemap(expenses,'rep-tree-wrap','rep-tree-body');
   renderBars(expenses,'rep-bars');
-  renderDailyChart(expenses, from, to);
+  if(from&&to)renderDailyChart(expenses, from, to);
   const renderRepTabs=()=>buildUserTabs('rep-user-tabs',repUserFilter,(f)=>{repUserFilter=f;renderRepTabs();renderEntries(filterByUser(list,repUserFilter),'rep-list');});
   renderRepTabs();
   renderEntries(filterByUser(list,repUserFilter),'rep-list');
