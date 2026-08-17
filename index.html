@@ -12,7 +12,7 @@
 <meta http-equiv="Expires" content="0">
 <script>
 (function(){
-  const APP_VERSION='20260710-002';
+  const APP_VERSION='20260818-001';
   if(!location.protocol.startsWith('http'))return;
   const params=new URLSearchParams(location.search);
   if(params.get('v')===APP_VERSION)return;
@@ -20,11 +20,11 @@
   location.replace(location.pathname+'?'+params.toString()+location.hash);
 })();
 </script>
-<link rel="manifest" href="manifest.webmanifest?v=20260710-002">
-<link rel="apple-touch-icon" href="icon-180.png?v=20260710-002">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20260710-002">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20260710-002">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20260710-002">
+<link rel="manifest" href="manifest.webmanifest?v=20260818-001">
+<link rel="apple-touch-icon" href="icon-180.png?v=20260818-001">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20260818-001">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20260818-001">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20260818-001">
 <title>記帳本</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;600;700&display=swap');
@@ -402,6 +402,14 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 .recur-freq-btn:active{transform:scale(0.95)}
 .recur-freq-btn.active{border-color:var(--ink);background:var(--ink);color:#fbf9f2}
 .recur-item{display:flex;align-items:center;gap:10px;padding:13px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:9px;border:1px solid var(--border)}
+.trip-manager-row{padding:13px 0;border-bottom:1px solid var(--border)}
+.trip-manager-row:last-child{padding-bottom:0;border-bottom:none}
+.trip-manager-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12px;font-weight:700;color:var(--ink-3)}
+.trip-manager-actions{display:flex;gap:8px;align-items:center}
+.trip-manager-actions .form-input{min-width:0;flex:1}
+.trip-manager-actions button{white-space:nowrap;margin:0}
+.trip-manager-actions .secondary-btn,.trip-manager-actions .danger-btn{width:auto;padding:10px 12px}
+@media(max-width:480px){.trip-manager-actions{flex-wrap:wrap}.trip-manager-actions .form-input{flex-basis:100%}.trip-manager-actions button{flex:1}}
 </style>
 </head>
 <body>
@@ -763,6 +771,13 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       <div id="recurring-settings-list"></div>
       <div id="recurring-settings-empty" class="empty" style="padding:24px;display:none">尚無定期支出</div>
     </div>
+    <div class="section-title" id="sec-trip-manager-title">團別管理</div>
+    <div class="card" id="trip-manager-card">
+      <div style="font-size:13px;color:var(--ink-3);margin-bottom:14px;line-height:1.6" id="trip-manager-hint">改名會同步更新該團所有舊記錄；只有沒有記錄的誤建團別可刪除。</div>
+      <div id="trip-manager-list"></div>
+      <div id="trip-manager-empty" class="empty" style="padding:24px;display:none">目前沒有團別</div>
+      <div id="trip-manager-msg" class="msg" style="margin:12px 0 0"></div>
+    </div>
     <div class="section-title">資料管理</div>
     <div class="card">
       <div style="font-size:13px;color:var(--ink-3);margin-bottom:14px;line-height:1.6">資料儲存於你的 Google Sheets，本機同時保留快取。</div>
@@ -879,6 +894,8 @@ const I18N={
     sec_cloud:'雲端連線狀態',btn_change_api:'重新設定 API 網址',
     sec_rates:'幣別匯率（對台幣）',rate_spot:'即期匯率',btn_update_rate:'🔄 更新匯率',
     rate_hint:'點「更新匯率」從台灣銀行取得最新即期匯率並自動換算為台幣基準。修改後自動儲存。',
+    sec_trips:'團別管理',trip_manage_hint:'改名會同步更新該團所有舊記錄；只有沒有記錄的誤建團別可刪除。',trip_manage_empty:'目前沒有團別',trip_record_count:'筆記錄',btn_rename_trip:'儲存團名',btn_delete_empty_trip:'刪除空白團別',
+    trip_name_required:'請輸入團名',trip_name_unchanged:'團名沒有變更',trip_name_exists:'這個團名已存在，記錄會合併到同一團。是否繼續？',trip_rename_confirm:'確定將「{old}」改成「{next}」？該團所有舊記錄也會一起更新。',trip_renamed:'團名已更新，舊記錄也已保留。',trip_deleted:'已刪除沒有記錄的團別。',trip_delete_used:'這個團已有記錄，為了保留資料不能刪除；可以直接改名。',
     sec_data:'資料管理',data_hint:'資料儲存於你的 Google Sheets，本機同時保留快取。',
     btn_resync:'重新同步雲端資料',btn_export:'匯出 CSV 備份',btn_clear:'清除本機快取',
     conn_ok:'已連線至 Google Sheets',conn_no:'尚未設定 API 網址',sync_ok:'已連線',sync_off:'離線',sync_none:'未連線',
@@ -964,6 +981,8 @@ const I18N={
     sec_cloud:'Cloud Connection',btn_change_api:'Reset API URL',
     sec_rates:'Exchange Rates (to NT$)',rate_spot:'Spot Rate',btn_update_rate:'🔄 Update Rates',
     rate_hint:'Click "Update Rates" to fetch from Bank of Taiwan, auto-converted to NT$ base.',
+    sec_trips:'Tour management',trip_manage_hint:'Renaming updates all existing records for that tour. Only unused tours can be removed.',trip_manage_empty:'No tours yet',trip_record_count:'records',btn_rename_trip:'Save name',btn_delete_empty_trip:'Remove unused tour',
+    trip_name_required:'Please enter a tour name',trip_name_unchanged:'The name has not changed',trip_name_exists:'That tour name already exists. Its records will be merged. Continue?',trip_rename_confirm:'Rename “{old}” to “{next}”? All existing records for this tour will be updated too.',trip_renamed:'Tour name updated. Existing records were kept.',trip_deleted:'Unused tour removed.',trip_delete_used:'This tour has records, so it cannot be removed. You can rename it instead.',
     sec_data:'Data Management',data_hint:'Data saved to Google Sheets. Local cache kept for offline access.',
     btn_resync:'Re-sync Cloud Data',btn_export:'Export CSV',btn_clear:'Clear Local Cache',
     conn_ok:'Connected to Google Sheets',conn_no:'API URL not set',sync_ok:'Connected',sync_off:'Offline',sync_none:'No Link',
@@ -1340,7 +1359,7 @@ function applyLang(){
   const vlt=document.getElementById('voice-lang-toggle');
   if(vlt)vlt.style.display=(lang==='en')?'flex':'none';
   document.querySelectorAll('#screen-settings .section-title').forEach((el,i)=>{
-    [T('sec_lang'),T('sec_users'),T('sec_cloud'),T('sec_rates'),T('sec_recurring'),T('sec_data')].forEach((v,j)=>{if(i===j)el.textContent=v;});
+    [T('sec_lang'),T('sec_users'),T('sec_cloud'),T('sec_rates'),T('sec_recurring'),T('sec_trips'),T('sec_data')].forEach((v,j)=>{if(i===j)el.textContent=v;});
   });
   document.querySelectorAll('#screen-settings .form-label').forEach(el=>{
     if(el.textContent.includes('1')||el.textContent.includes('User 1'))el.textContent=T('lbl_user1');
@@ -1354,6 +1373,8 @@ function applyLang(){
   document.getElementById('refresh-btn').textContent=T('btn_resync');
   document.getElementById('export-btn').textContent=T('btn_export');
   document.getElementById('clear-btn').textContent=T('btn_clear');
+  document.getElementById('trip-manager-hint').textContent=T('trip_manage_hint');
+  document.getElementById('trip-manager-empty').textContent=T('trip_manage_empty');
   document.querySelector('#setup-modal h2').textContent=T('modal_setup_title');
   document.querySelector('#setup-modal p').textContent=T('modal_setup_desc');
   const setupSteps=document.querySelectorAll('#setup-modal .step-text');
@@ -1373,7 +1394,7 @@ function applyLang(){
   document.getElementById('summary-close-btn').textContent=T('summary_close');
   document.querySelector('#identity-modal h2').textContent=T('identity_title');
   document.querySelector('#identity-modal p').textContent=T('identity_desc');
-  buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
+  buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);refreshTripManager();
   refreshAll();
   updateDeviceIdentityDisplay();
 }
@@ -1897,6 +1918,100 @@ function buildTripFilter(){
     if(repTripFilter===t.name)o.selected=true;
     sel.appendChild(o);
   });
+}
+function managedTrips(){
+  const counts={};
+  records.forEach(r=>{
+    const name=String(r.trip||'').trim();
+    if(name)counts[name]=(counts[name]||0)+1;
+  });
+  return uniqueTrips([
+    ...tripMemory,
+    ...records.filter(r=>r.trip).map(r=>({name:r.trip,ts:r.ts||0}))
+  ]).map(t=>({name:t.name,count:counts[t.name]||0}));
+}
+function showTripManagerMsg(type,text){
+  const msg=document.getElementById('trip-manager-msg');
+  if(!msg)return;
+  msg.className='msg '+type;
+  msg.textContent=text;
+  if(type==='success')setTimeout(()=>{if(msg.textContent===text){msg.className='msg';msg.textContent='';}},3500);
+}
+function refreshTripManager(){
+  const list=document.getElementById('trip-manager-list');
+  const empty=document.getElementById('trip-manager-empty');
+  if(!list||!empty)return;
+  const tours=managedTrips();
+  list.innerHTML='';
+  empty.style.display=tours.length?'none':'block';
+  tours.forEach(tour=>{
+    const row=document.createElement('div');row.className='trip-manager-row';
+    const meta=document.createElement('div');meta.className='trip-manager-meta';
+    const name=document.createElement('strong');name.textContent=tour.name;
+    const count=document.createElement('span');count.textContent=tour.count+' '+T('trip_record_count');
+    meta.append(name,count);
+    const actions=document.createElement('div');actions.className='trip-manager-actions';
+    const input=document.createElement('input');input.type='text';input.className='form-input';input.value=tour.name;input.setAttribute('aria-label',tour.name);
+    const rename=document.createElement('button');rename.type='button';rename.className='secondary-btn';rename.textContent=T('btn_rename_trip');
+    rename.onclick=()=>renameTrip(tour.name,input.value);
+    actions.append(input,rename);
+    if(tour.count===0){
+      const remove=document.createElement('button');remove.type='button';remove.className='danger-btn';remove.textContent=T('btn_delete_empty_trip');
+      remove.onclick=()=>deleteUnusedTrip(tour.name);
+      actions.appendChild(remove);
+    }
+    row.append(meta,actions);list.appendChild(row);
+  });
+}
+function replaceTripMessage(key,values){
+  let text=T(key);
+  Object.entries(values||{}).forEach(([name,value])=>{text=text.replace('{'+name+'}',value);});
+  return text;
+}
+function rebuildTripViews(previousName,nextName){
+  if(repTripFilter===previousName)repTripFilter=nextName||null;
+  buildTripSelect();
+  const select=document.getElementById('trip-select');
+  if(select&&getCurrentTrip()===previousName)select.value=nextName||'';
+  buildTripFilter();
+  refreshTripManager();
+  refreshAll();
+  if(reportVisible())runReport({silent:true});
+}
+function renameTrip(previousName,rawNextName){
+  const nextName=String(rawNextName||'').trim();
+  if(!nextName){showTripManagerMsg('error',T('trip_name_required'));return;}
+  if(nextName===previousName){showTripManagerMsg('info',T('trip_name_unchanged'));return;}
+  const exists=managedTrips().some(t=>t.name===nextName);
+  const message=exists?T('trip_name_exists'):replaceTripMessage('trip_rename_confirm',{old:previousName,next:nextName});
+  if(!confirm(message))return;
+
+  const changed=[];
+  records=records.map(r=>{
+    if(String(r.trip||'').trim()!==previousName)return r;
+    const updated={...r,trip:nextName};changed.push(updated);return updated;
+  });
+  tripMemory=tripMemory.filter(t=>t.name!==previousName&&t.name!==nextName);
+  tripMemory=cleanTripMemory([{name:nextName,ts:Date.now()},...tripMemory]);
+  const recurringChanged=recurringPayments.some(r=>String(r.trip||'').trim()===previousName);
+  if(recurringChanged){
+    recurringPayments=recurringPayments.map(r=>String(r.trip||'').trim()===previousName?{...r,trip:nextName,mtime:Date.now()}:r);
+    saveRecurring();pushRecurring();
+  }
+  saveTripMemory();saveLocal();pushSettings();
+  changed.forEach(rec=>enqueue({op:'upsert',id:rec.id,rec}));
+  rebuildTripViews(previousName,nextName);
+  showTripManagerMsg('success',T('trip_renamed'));
+}
+function deleteUnusedTrip(name){
+  if(records.some(r=>String(r.trip||'').trim()===name)){
+    showTripManagerMsg('error',T('trip_delete_used'));return;
+  }
+  if(!confirm(T('confirm_delete')))return;
+  tripMemory=tripMemory.filter(t=>t.name!==name);
+  saveTripMemory();pushSettings();
+  rebuildTripViews(name,'');
+  showTripManagerMsg('success',T('trip_deleted'));
 }
 document.getElementById('trip-select').onchange=toggleTripCustom;
 ['rep-from','rep-to'].forEach(id=>{
@@ -2453,6 +2568,7 @@ function refreshSettings(){
   updateDeviceIdentityDisplay();
   buildRateList();
   refreshRecurringSettings();
+  refreshTripManager();
 }
 function updateDeviceIdentityDisplay(){
   const info=document.getElementById('device-identity-info');
