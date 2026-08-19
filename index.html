@@ -12,7 +12,7 @@
 <meta http-equiv="Expires" content="0">
 <script>
 (function(){
-  const APP_VERSION='20260818-001';
+  const APP_VERSION='20260819-001';
   if(!location.protocol.startsWith('http'))return;
   const params=new URLSearchParams(location.search);
   if(params.get('v')===APP_VERSION)return;
@@ -20,11 +20,11 @@
   location.replace(location.pathname+'?'+params.toString()+location.hash);
 })();
 </script>
-<link rel="manifest" href="manifest.webmanifest?v=20260818-001">
-<link rel="apple-touch-icon" href="icon-180.png?v=20260818-001">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20260818-001">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20260818-001">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20260818-001">
+<link rel="manifest" href="manifest.webmanifest?v=20260819-001">
+<link rel="apple-touch-icon" href="icon-180.png?v=20260819-001">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20260819-001">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20260819-001">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20260819-001">
 <title>記帳本</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;600;700&display=swap');
@@ -264,6 +264,10 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 .mode-btn.income.active{border-color:var(--ok);background:var(--ok);color:#fbf9f2}
 .trip-row{display:grid;grid-template-columns:1fr;gap:8px}
 .trip-custom.hidden{display:none}
+.daily-month-wrap{display:none;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)}
+.daily-month-wrap.show{display:block}
+.daily-month-wrap .form-input{margin-top:6px}
+.daily-month-hint{margin-top:7px;font-size:12px;font-weight:700;color:var(--ink-3)}
 .trip-chip,.kind-chip{
   display:inline-flex;align-items:center;gap:4px;margin-left:4px;padding:2px 7px;
   border-radius:999px;background:var(--surface2);color:var(--ink-2);font-size:10px;font-weight:800;
@@ -550,6 +554,11 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       <div class="trip-row">
         <select class="curr-select" id="trip-select"></select>
         <input type="text" class="form-input trip-custom hidden" id="trip-custom" placeholder="例：越南峴港團、泰國曼谷團">
+        <div class="daily-month-wrap" id="daily-month-wrap">
+          <label class="form-label" id="daily-month-label">日常支出月份</label>
+          <input type="month" class="form-input" id="daily-month-input">
+          <div class="daily-month-hint" id="daily-month-hint"></div>
+        </div>
       </div>
     </div>
     <div class="form-group">
@@ -838,6 +847,7 @@ const PRIMARY_INCOME_CATS=['income_tip','income_fee','income_refund','income_oth
 const QUICK_CURR=['TWD','THB','VND','USD'];
 const TRIP_MAX=3;
 const TRIP_EXPIRE_DAYS=120;
+const DAILY_TRIP_PREFIX='日常支出 · ';
 const CURRENCIES=[
   {code:'TWD',name:'新台幣',symbol:'NT$',rate:1},
   {code:'THB',name:'泰銖',symbol:'฿',rate:0.926},
@@ -871,7 +881,7 @@ const I18N={
     settings_subtitle:'依台灣中央銀行牌告匯率',
     report_subtitle:'可選日期、類別或團別',
     who_paid:'誰支出的？',
-    lbl_trip:'團別 / 地區',trip_none:'不指定團別',trip_new:'＋ 新增這一團',trip_placeholder:'例：越南峴港團、泰國曼谷團',
+    lbl_trip:'團別 / 地區',trip_none:'不指定團別',trip_new:'＋ 新增這一團',trip_placeholder:'例：越南峴港團、泰國曼谷團',daily_month:'日常支出月份',daily_month_hint:'這一筆會整理到：',
     lbl_entry_kind:'記錄類型',kind_expense:'日常支出',kind_income:'小費 / 收入',
     lbl_cat:'類別',lbl_income_cat:'收入類型',lbl_amount:'金額',lbl_curr:'幣別',lbl_note:'備註（店家、說明）',lbl_date:'日期',
     lbl_recurring:'定期支出',
@@ -958,7 +968,7 @@ const I18N={
     settings_subtitle:'Taiwan Central Bank Exchange Rates',
     report_subtitle:'Filter by date, category, or tour',
     who_paid:'Who paid?',
-    lbl_trip:'Tour / Area',trip_none:'No tour',trip_new:'＋ Add tour',trip_placeholder:'e.g. Vietnam Da Nang tour',
+    lbl_trip:'Tour / Area',trip_none:'No tour',trip_new:'＋ Add tour',trip_placeholder:'e.g. Vietnam Da Nang tour',daily_month:'Daily expense month',daily_month_hint:'This entry will be grouped under:',
     lbl_entry_kind:'Record type',kind_expense:'Expense',kind_income:'Tips / Income',
     lbl_cat:'Category',lbl_income_cat:'Income type',lbl_amount:'Amount',lbl_curr:'Currency',lbl_note:'Note (Store, Details)',lbl_date:'Date',
     lbl_recurring:'Recurring',
@@ -1318,9 +1328,10 @@ function applyLang(){
   document.querySelector('#screen-settings .topbar-left p').textContent=T('settings_subtitle');
   document.querySelector('#screen-report .topbar-left p').textContent=T('report_subtitle');
   const addLabels=document.querySelectorAll('#screen-add .form-label');
-  const addLabelKeys=['lbl_trip','lbl_entry_kind',entryKind==='income'?'lbl_income_cat':'lbl_cat','lbl_amount','lbl_curr','lbl_note','lbl_date','lbl_recurring'];
+  const addLabelKeys=['lbl_trip','daily_month','lbl_entry_kind',entryKind==='income'?'lbl_income_cat':'lbl_cat','lbl_amount','lbl_curr','lbl_note','lbl_date','lbl_recurring'];
   addLabels.forEach((el,i)=>{if(addLabelKeys[i])el.textContent=T(addLabelKeys[i]);});
   document.getElementById('trip-custom').placeholder=T('trip_placeholder');
+  updateDailyMonthHint();
   document.getElementById('mode-expense-btn').textContent=T('kind_expense');
   document.getElementById('mode-income-btn').textContent=T('kind_income');
   document.getElementById('inp-note').placeholder=T('note_placeholder');
@@ -1841,7 +1852,7 @@ function cleanTripMemory(items){
   const map={};
   (Array.isArray(items)?items:[]).forEach(item=>{
     const name=String(item&&item.name||item||'').trim();
-    if(!name)return;
+    if(!name||isDailyTripName(name))return;
     const ts=Number(item&&item.ts)||Date.now();
     if(ts<cutoff)return;
     if(!map[name]||map[name].ts<ts)map[name]={name,ts};
@@ -1860,9 +1871,26 @@ function uniqueTrips(items){
 }
 function mergeTripMemory(a,b){return cleanTripMemory([...(a||[]),...(b||[])]);}
 function saveTripMemory(){localStorage.setItem('xp_trip_memory',JSON.stringify(tripMemory));}
+function dailyMonthOfTrip(name){
+  const match=String(name||'').trim().match(/^日常支出 · (\d{4})年(\d{1,2})月$/);
+  return match?match[1]+'-'+match[2].padStart(2,'0'):'';
+}
+function isDailyTripName(name){return !!dailyMonthOfTrip(name);}
+function dailyTripName(month){
+  const value=/^\d{4}-\d{2}$/.test(String(month||''))?month:thisMonth();
+  const [year,rawMonth]=value.split('-');
+  return DAILY_TRIP_PREFIX+year+'年'+Number(rawMonth)+'月';
+}
+function updateDailyMonthHint(){
+  const input=document.getElementById('daily-month-input');
+  const hint=document.getElementById('daily-month-hint');
+  if(!input||!hint)return;
+  if(!input.value)input.value=thisMonth();
+  hint.textContent=T('daily_month_hint')+' '+dailyTripName(input.value);
+}
 function rememberTrip(name){
   const n=String(name||'').trim();
-  if(!n)return;
+  if(!n||isDailyTripName(n))return;
   tripMemory=cleanTripMemory([{name:n,ts:Date.now()},...tripMemory]);
   saveTripMemory();buildTripSelect();buildTripFilter();
   pushSettings();
@@ -1871,6 +1899,10 @@ function getCurrentTrip(){
   const sel=document.getElementById('trip-select');
   const custom=document.getElementById('trip-custom');
   if(!sel)return '';
+  if(sel.value===''&&entryKind==='expense'){
+    const dailyMonth=document.getElementById('daily-month-input');
+    return dailyTripName(dailyMonth&&dailyMonth.value);
+  }
   return sel.value==='__new__'?String(custom.value||'').trim():String(sel.value||'').trim();
 }
 function safeMathEval(expr){
@@ -1887,6 +1919,7 @@ function safeMathEval(expr){
 function buildTripSelect(){
   const sel=document.getElementById('trip-select');if(!sel)return;
   const current=getCurrentTrip();
+  const dailyMonth=dailyMonthOfTrip(current);
   sel.innerHTML=`<option value="">${T('trip_none')}</option>`;
   tripMemory.forEach(t=>{
     const o=document.createElement('option');o.value=t.name;o.textContent=t.name;
@@ -1894,7 +1927,10 @@ function buildTripSelect(){
     sel.appendChild(o);
   });
   const add=document.createElement('option');add.value='__new__';add.textContent=T('trip_new');sel.appendChild(add);
-  if(current&&!tripMemory.some(t=>t.name===current)){
+  if(dailyMonth){
+    const input=document.getElementById('daily-month-input');
+    if(input)input.value=dailyMonth;
+  }else if(current&&!tripMemory.some(t=>t.name===current)){
     add.selected=true;
     const custom=document.getElementById('trip-custom');
     if(custom)custom.value=current;
@@ -1902,9 +1938,11 @@ function buildTripSelect(){
   toggleTripCustom();
 }
 function toggleTripCustom(){
-  const sel=document.getElementById('trip-select'),custom=document.getElementById('trip-custom');
+  const sel=document.getElementById('trip-select'),custom=document.getElementById('trip-custom'),dailyWrap=document.getElementById('daily-month-wrap');
   if(!sel||!custom)return;
   custom.classList.toggle('hidden',sel.value!=='__new__');
+  if(dailyWrap)dailyWrap.classList.toggle('show',sel.value===''&&entryKind==='expense');
+  updateDailyMonthHint();
 }
 function buildTripFilter(){
   const sel=document.getElementById('rep-trip-filter');if(!sel)return;
@@ -1923,11 +1961,11 @@ function managedTrips(){
   const counts={};
   records.forEach(r=>{
     const name=String(r.trip||'').trim();
-    if(name)counts[name]=(counts[name]||0)+1;
+    if(name&&!isDailyTripName(name))counts[name]=(counts[name]||0)+1;
   });
   return uniqueTrips([
-    ...tripMemory,
-    ...records.filter(r=>r.trip).map(r=>({name:r.trip,ts:r.ts||0}))
+    ...tripMemory.filter(t=>!isDailyTripName(t.name)),
+    ...records.filter(r=>r.trip&&!isDailyTripName(r.trip)).map(r=>({name:r.trip,ts:r.ts||0}))
   ]).map(t=>({name:t.name,count:counts[t.name]||0}));
 }
 function showTripManagerMsg(type,text){
@@ -2014,6 +2052,7 @@ function deleteUnusedTrip(name){
   showTripManagerMsg('success',T('trip_deleted'));
 }
 document.getElementById('trip-select').onchange=toggleTripCustom;
+document.getElementById('daily-month-input').onchange=updateDailyMonthHint;
 ['rep-from','rep-to'].forEach(id=>{
   const el=document.getElementById(id);
   if(el)el.onchange=()=>{if(reportVisible())runReport({silent:true});};
@@ -2033,7 +2072,7 @@ function setEntryKind(kind){
   document.getElementById('lbl-recurring').closest('.form-group').style.display=entryKind==='income'?'none':'block';
   const catLabel=document.getElementById('lbl-cat-main');
   if(catLabel)catLabel.textContent=entryKind==='income'?T('lbl_income_cat'):T('lbl_cat');
-  buildCatGrid();updateNoteSuggestions();
+  buildCatGrid();updateNoteSuggestions();toggleTripCustom();
 }
 document.getElementById('mode-expense-btn').onclick=()=>setEntryKind('expense');
 document.getElementById('mode-income-btn').onclick=()=>setEntryKind('income');
@@ -2616,7 +2655,7 @@ document.getElementById('save-btn').onclick=async()=>{
   if(trip)rememberTrip(trip);
   const kind=entryKind==='income'?'income':'expense';
   const rec={id:uid(),kind,trip,cat:finalCat,amount:amt,curr:selCurr,note:noteVal,date:normalizeDate(date),ts:Date.now(),user:userNames[selectedUserIdx]};
-  records.push(rec);saveLocal();
+  records.push(rec);saveLocal();buildTripFilter();
   if(noteVal)addNoteMemory(finalCat,noteVal);
   const cat=getCat(finalCat);
   let successMsg=(kind==='income'?T('kind_income')+' · ':T('saved_msg'))+cat.icon+' '+fmtAmt(amt,selCurr)+(selCurr!=='TWD'?' = '+fmtTHB(toTHB(amt,selCurr)):'')+(trip?' · '+trip:'')+' ('+userNames[selectedUserIdx]+')';
