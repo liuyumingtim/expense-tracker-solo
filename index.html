@@ -12,7 +12,7 @@
 <meta http-equiv="Expires" content="0">
 <script>
 (function(){
-  const APP_VERSION='20260819-001';
+  const APP_VERSION='20260908-001';
   if(!location.protocol.startsWith('http'))return;
   const params=new URLSearchParams(location.search);
   if(params.get('v')===APP_VERSION)return;
@@ -20,11 +20,11 @@
   location.replace(location.pathname+'?'+params.toString()+location.hash);
 })();
 </script>
-<link rel="manifest" href="manifest.webmanifest?v=20260819-001">
-<link rel="apple-touch-icon" href="icon-180.png?v=20260819-001">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20260819-001">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20260819-001">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20260819-001">
+<link rel="manifest" href="manifest.webmanifest?v=20260908-001">
+<link rel="apple-touch-icon" href="icon-180.png?v=20260908-001">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20260908-001">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20260908-001">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20260908-001">
 <title>記帳本</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;600;700&display=swap');
@@ -670,6 +670,18 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       <div class="hero-amt"><span class="hero-cur">NT$</span><span class="hero-value num" id="month-total">0</span></div>
       <div class="stat-sub num" id="month-stat-sub">新台幣</div>
     </div>
+    <div id="easycard-summary-wrap" style="display:none">
+      <div class="section-title" id="easycard-title">悠遊卡</div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+          <span class="stat-label" id="easycard-total-label">悠遊卡累計儲值</span>
+          <strong class="num" id="easycard-total" style="font-size:22px;color:var(--ink)">NT$ 0</strong>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:12px;margin-top:9px;font-size:12px;font-weight:700;color:var(--ink-3)">
+          <span id="easycard-count">0 次</span><span id="easycard-last">最近一次：—</span>
+        </div>
+      </div>
+    </div>
     <div id="month-trip-summary-wrap" style="display:none">
       <div class="section-title" id="month-trip-summary-title">團別總結</div>
       <div id="month-trip-summary"></div>
@@ -824,6 +836,7 @@ const CATS=[
   {id:'drink',lkey:'cat_drink',icon:'🧋',color:'#f0fdf4'},
   {id:'dessert',lkey:'cat_dessert',icon:'🍰',color:'#fdf2f8'},
   {id:'transport',lkey:'cat_transport',icon:'🚇',color:'#fffbeb'},
+  {id:'easycard',lkey:'cat_easycard',icon:'💳',color:'#eef5ff'},
   {id:'shopping',lkey:'cat_shopping',icon:'🛍️',color:'#fdf2f8'},
   {id:'home',lkey:'cat_home',icon:'🏠',color:'#f0fdf4'},
   {id:'travel',lkey:'cat_travel',icon:'✈️',color:'#ecfdf5'},
@@ -842,7 +855,7 @@ const INCOME_CATS=[
   {id:'income_refund',lkey:'income_refund',icon:'↩',color:'#e3eae5'},
   {id:'income_other',lkey:'income_other',icon:'＋',color:'#f9fafb'},
 ];
-const PRIMARY_CATS=['food','drink','transport','shopping','home','travel'];
+const PRIMARY_CATS=['food','drink','transport','easycard','shopping','travel'];
 const PRIMARY_INCOME_CATS=['income_tip','income_fee','income_refund','income_other'];
 const QUICK_CURR=['TWD','THB','VND','USD'];
 const TRIP_MAX=3;
@@ -931,11 +944,12 @@ const I18N={
     income_total:'收入',expense_total:'支出',balance_total:'結餘',
     csv_headers:['日期','類型','團別','類別','金額','幣別','台幣換算','備註','使用者'],
     users_saved:'使用者名稱已儲存！',
-    cat_food:'食物',cat_drink:'飲料',cat_dessert:'甜點',cat_transport:'交通',cat_shopping:'購物',
+    cat_food:'食物',cat_drink:'飲料',cat_dessert:'甜點',cat_transport:'交通',cat_easycard:'悠遊卡儲值',cat_shopping:'購物',
     cat_entertainment:'娛樂',cat_travel:'旅遊',cat_home:'居家',cat_medical:'醫療',cat_beauty:'美容',
     cat_education:'教育',cat_bills:'帳單',cat_subscription:'訂閱',cat_housing:'房屋',cat_other:'其他',
     income_tip:'小費',income_fee:'代收費',income_refund:'退費',income_other:'其他收入',
     twd_ref:'* 1 ฿ ≈ NT$ ',
+    sec_easycard:'悠遊卡',easycard_total:'悠遊卡累計儲值',easycard_count:'次儲值',easycard_last:'最近一次：',
     // Recurring
     recurring_auto:'設為定期自動記帳',
     freq_monthly:'每月',freq_weekly:'每週',freq_daily:'每天',freq_workday:'工作日',
@@ -1018,11 +1032,12 @@ const I18N={
     income_total:'Income',expense_total:'Expense',balance_total:'Balance',
     csv_headers:['Date','Type','Tour','Category','Amount','Currency','NT$','Note','User'],
     users_saved:'User names saved!',
-    cat_food:'Food',cat_drink:'Drink',cat_dessert:'Dessert',cat_transport:'Transport',cat_shopping:'Shopping',
+    cat_food:'Food',cat_drink:'Drink',cat_dessert:'Dessert',cat_transport:'Transport',cat_easycard:'EasyCard top-up',cat_shopping:'Shopping',
     cat_entertainment:'Entertain',cat_travel:'Travel',cat_home:'Home',cat_medical:'Medical',cat_beauty:'Beauty',
     cat_education:'Education',cat_bills:'Bills',cat_subscription:'Subscription',cat_housing:'Housing',cat_other:'Other',
     income_tip:'Tips',income_fee:'Collected Fees',income_refund:'Refund',income_other:'Other Income',
     twd_ref:'* 1 ฿ ≈ NT$ ',
+    sec_easycard:'EasyCard',easycard_total:'EasyCard top-ups',easycard_count:'top-ups',easycard_last:'Latest:',
     // Recurring
     recurring_auto:'Set as recurring payment',
     freq_monthly:'Monthly',freq_weekly:'Weekly',freq_daily:'Daily',freq_workday:'Weekdays',
@@ -1349,6 +1364,8 @@ function applyLang(){
   document.getElementById('month-stat-lbl').textContent=T('month_total');
   document.getElementById('month-stat-sub').textContent=T('today_sub');
   document.getElementById('month-count-sub').textContent=T('count_sub');
+  document.getElementById('easycard-title').textContent=T('sec_easycard');
+  document.getElementById('easycard-total-label').textContent=T('easycard_total');
   document.getElementById('month-trip-summary-title').textContent=T('sec_trip_summary');
   document.getElementById('month-cat-title').textContent=T('sec_cat_analysis');
   document.getElementById('month-detail-title').textContent=T('sec_details');
@@ -1463,6 +1480,18 @@ function normRec(r){
   r.trip=String(r.trip||'').trim();
   return r;
 }
+function migrateEasyCardRecords(){
+  const changed=[];
+  records=records.map(r=>{
+    if(r.cat==='easycard'||!/悠遊|easy\s*card/i.test(String(r.note||'')))return r;
+    const updated={...r,cat:'easycard'};
+    changed.push(updated);
+    return updated;
+  });
+  if(!changed.length)return;
+  saveLocal();
+  changed.forEach(rec=>enqueue({op:'upsert',id:rec.id,rec}));
+}
 async function syncFromCloud(){
   if(!apiUrl)return false;
   try{
@@ -1475,7 +1504,7 @@ async function syncFromCloud(){
       pendingOps.filter(o=>o.op==='upsert').forEach(o=>{map[o.rec.id]=normRec({...o.rec});});
       pendingOps.filter(o=>o.op==='delete').forEach(o=>{delete map[o.id];});
       records=Object.values(map);
-      saveLocal();setSyncStatus(true);return true;
+      saveLocal();migrateEasyCardRecords();setSyncStatus(true);return true;
     }
   }catch(e){setSyncStatus(false,e.message);}
   return false;
@@ -2534,6 +2563,18 @@ function filterByUser(list,userFilter){
   const name=userNames[userFilter];
   return list.filter(r=>(r.user||userNames[0])===name);
 }
+function renderEasyCardSummary(){
+  const wrap=document.getElementById('easycard-summary-wrap');
+  const entries=records.filter(r=>r.cat==='easycard'&&!isIncome(r));
+  if(!wrap)return;
+  wrap.style.display=entries.length?'block':'none';
+  if(!entries.length)return;
+  const total=entries.reduce((sum,r)=>sum+toTHB(r.amount,r.curr),0);
+  const latest=[...entries].sort((a,b)=>b.date.localeCompare(a.date)||(Number(b.ts)||0)-(Number(a.ts)||0))[0];
+  document.getElementById('easycard-total').textContent=fmtTHB(total);
+  document.getElementById('easycard-count').textContent=entries.length+' '+T('easycard_count');
+  document.getElementById('easycard-last').textContent=T('easycard_last')+latest.date+' · '+fmtAmt(latest.amount,latest.curr);
+}
 function refreshToday(){
   const t=today(),list=records.filter(r=>r.date===t);
   const visibleList=filterByUser(list,todayUserFilter);
@@ -2550,6 +2591,7 @@ function refreshMonth(){
   const visibleList=filterByUser(list,monthUserFilter);
   const expenses=expenseRecords(visibleList);
   setHeroBalance('month',visibleList);
+  renderEasyCardSummary();
   renderTripSummary(visibleList,'month-trip-summary',{wrapId:'month-trip-summary-wrap',subtitle:T('title_month')});
   renderMonthBudget(expenses,m,'month-budget-section');
   renderBars(expenses,'month-bars');
@@ -2748,7 +2790,7 @@ document.getElementById('inp-date').value=today();
 document.getElementById('rep-from').value='';
 document.getElementById('rep-to').value='';
 
-loadLocal();buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
+loadLocal();migrateEasyCardRecords();buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
 buildCatFilters('rep-cat-filter',repCatFilter,(id)=>{repCatFilter=id;refreshReport();});
 updateLangBtns();
 applyLang();
