@@ -650,6 +650,7 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
       <div id="today-trip-summary"></div>
     </div>
     <div id="today-compare"></div>
+    <div id="daily-spend-compare" class="card"></div>
     <div id="today-bars"></div>
     <div class="section-title" id="today-detail-title">明細</div>
     <div class="user-tab-row" id="today-user-tabs"></div>
@@ -662,6 +663,7 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
   <div class="topbar"><div class="topbar-left"><div class="tb-eyebrow">THIS MONTH</div><h1>本月總覽</h1><p id="month-label"></p></div></div>
   <div class="content">
     <div id="month-budget-section"></div>
+    <div id="monthly-spend-compare" class="card"></div>
     <div class="hero">
       <div class="hero-row-top">
         <span class="stat-label" id="month-stat-lbl">本月合計 (NT$)</span>
@@ -851,12 +853,14 @@ const CATS=[
 ];
 const INCOME_CATS=[
   {id:'income_tip',lkey:'income_tip',icon:'💵',color:'#e8ede2'},
+  {id:'income_commission',lkey:'income_commission',icon:'🧾',color:'#f1e7d3'},
+  {id:'income_extra_tip',lkey:'income_extra_tip',icon:'＋',color:'#e3eae5'},
   {id:'income_fee',lkey:'income_fee',icon:'🧾',color:'#f1e7d3'},
   {id:'income_refund',lkey:'income_refund',icon:'↩',color:'#e3eae5'},
   {id:'income_other',lkey:'income_other',icon:'＋',color:'#f9fafb'},
 ];
 const PRIMARY_CATS=['food','drink','transport','easycard','shopping','travel'];
-const PRIMARY_INCOME_CATS=['income_tip','income_fee','income_refund','income_other'];
+const PRIMARY_INCOME_CATS=['income_tip','income_commission','income_extra_tip'];
 const QUICK_CURR=['TWD','THB','VND','USD'];
 const TRIP_MAX=3;
 const TRIP_EXPIRE_DAYS=120;
@@ -947,7 +951,7 @@ const I18N={
     cat_food:'食物',cat_drink:'飲料',cat_dessert:'甜點',cat_transport:'交通',cat_easycard:'悠遊卡儲值',cat_shopping:'購物',
     cat_entertainment:'娛樂',cat_travel:'旅遊',cat_home:'居家',cat_medical:'醫療',cat_beauty:'美容',
     cat_education:'教育',cat_bills:'帳單',cat_subscription:'訂閱',cat_housing:'房屋',cat_other:'其他',
-    income_tip:'小費',income_fee:'代收費',income_refund:'退費',income_other:'其他收入',
+    income_tip:'小費收入',income_commission:'退佣收入',income_extra_tip:'小費多給',income_fee:'代收費',income_refund:'退費',income_other:'其他收入',
     twd_ref:'* 1 ฿ ≈ NT$ ',
     sec_easycard:'悠遊卡',easycard_total:'悠遊卡累計儲值',easycard_count:'次儲值',easycard_last:'最近一次：',
     // Recurring
@@ -1035,7 +1039,7 @@ const I18N={
     cat_food:'Food',cat_drink:'Drink',cat_dessert:'Dessert',cat_transport:'Transport',cat_easycard:'EasyCard top-up',cat_shopping:'Shopping',
     cat_entertainment:'Entertain',cat_travel:'Travel',cat_home:'Home',cat_medical:'Medical',cat_beauty:'Beauty',
     cat_education:'Education',cat_bills:'Bills',cat_subscription:'Subscription',cat_housing:'Housing',cat_other:'Other',
-    income_tip:'Tips',income_fee:'Collected Fees',income_refund:'Refund',income_other:'Other Income',
+    income_tip:'Tips',income_commission:'Commission',income_extra_tip:'Extra tips',income_fee:'Collected Fees',income_refund:'Refund',income_other:'Other Income',
     twd_ref:'* 1 ฿ ≈ NT$ ',
     sec_easycard:'EasyCard',easycard_total:'EasyCard top-ups',easycard_count:'top-ups',easycard_last:'Latest:',
     // Recurring
@@ -1076,6 +1080,7 @@ let editSelCat='food', editKind='expense';
 let todayUserFilter=null, monthUserFilter=null, repUserFilter=null;
 let recurringPayments=[], selFreq='monthly';
 let pendingOps=[], flushing=false;
+let queuePromise=null, retryTimer=null, retryDelay=5000, syncHealthy=false, syncError='';
 const DEVICE_KEY='xp_device_user';
 const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbzKALMg_nuP_S6f7UExFMP5tIKm9IB_yJtNY83HK6CP5PEUUS9Nvfqv4WFL_dnoA7ExaQ/exec';
 
@@ -1445,7 +1450,7 @@ async function apiCall(action,data={}){
   }finally{clearTimeout(timer);}
 }
 // ===== 未同步佇列 =====
-function savePending(){localStorage.setItem('xp_pending',JSON.stringify(pendingOps));}
+function savePending(){localStorage.setItem('xp_pending',JSON.stringify(pendingOps));paintSyncStatus();}
 function enqueue(op){
   // 同 id 的舊操作用新的取代（add→edit 收斂成一次 upsert；任何操作後 delete 則由 delete 收尾）
   pendingOps=pendingOps.filter(o=>o.id!==op.id);
@@ -1453,26 +1458,41 @@ function enqueue(op){
   savePending();
   flushQueue();
 }
-async function flushQueue(){
-  if(!apiUrl||flushing||!pendingOps.length)return true;
-  flushing=true;
-  const batch=pendingOps.slice(); // 快照，避免 flush 期間新進的操作被一起清掉
-  let ok=true;
-  try{
-    const upserts=batch.filter(o=>o.op==='upsert').map(o=>o.rec);
-    const deletes=batch.filter(o=>o.op==='delete').map(o=>o.id);
-    for(const rec of upserts)await apiCall('add',rec);
-    for(const id of deletes){
-      try{await apiCall('delete',{id});}
-      catch(e){if(!/not found/i.test(e.message))throw e;} // 雲端本來就沒有 → 視為已完成
-    }
-    pendingOps=pendingOps.filter(o=>!batch.includes(o)); // 只移除這批已送出的（用物件參考比對）
-    savePending();setSyncStatus(true);
-  }catch(e){ok=false;setSyncStatus(false,e.message);}
-  finally{flushing=false;}
-  if(ok&&pendingOps.length)flushQueue(); // flush 期間有新操作 → 再跑一輪
-  return ok;
+function flushQueue(){
+  if(queuePromise)return queuePromise;
+  if(!apiUrl||navigator.onLine===false){paintSyncStatus();return Promise.resolve(false);}
+  if(!pendingOps.length)return Promise.resolve(true);
+  clearTimeout(retryTimer);
+  flushing=true;paintSyncStatus();
+  queuePromise=(async()=>{
+    try{
+      while(pendingOps.length){
+        const op=pendingOps[0];
+        if(op.op==='upsert')await apiCall('add',op.rec);
+        else if(op.op==='settings')await apiCall('setSettings',{settings:op.value});
+        else if(op.op==='budgets')await apiCall('setBudgets',{budgets:op.value});
+        else if(op.op==='recurring')await apiCall('setRecurring',{recurring:op.value});
+        else if(op.op==='delete'){
+          try{await apiCall('delete',{id:op.id});}
+          catch(e){if(!/not found/i.test(e.message))throw e;}
+        }else throw new Error('Unknown pending operation');
+        // A newer edit of the same record must survive the in-flight request.
+        pendingOps=pendingOps.filter(item=>item!==op);
+        savePending();
+      }
+      retryDelay=5000;setSyncStatus(true);return true;
+    }catch(e){
+      setSyncStatus(false,e.message);
+      retryTimer=setTimeout(()=>flushQueue(),retryDelay);
+      retryDelay=Math.min(retryDelay*2,60000);
+      return false;
+    }finally{flushing=false;queuePromise=null;paintSyncStatus();}
+  })();
+  return queuePromise;
 }
+window.addEventListener('online',()=>flushQueue());
+window.addEventListener('offline',()=>paintSyncStatus());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flushQueue();});
 function normRec(r){
   r.date=normalizeDate(r.date);
   if(!r.user||r.user==='')r.user=userNames[0];
@@ -1530,6 +1550,7 @@ function mergeRecurring(cloudArr){
 }
 async function syncSettingsFromCloud(){
   if(!apiUrl)return;
+  if(!await flushQueue())return;
   try{
     const [s,b,rc]=await Promise.all([
       apiCall('getSettings').catch(()=>({})),
@@ -1559,20 +1580,21 @@ async function syncSettingsFromCloud(){
 function pushSettings(){
   if(!apiUrl)return;
   const rates={};CURRENCIES.forEach(c=>{rates[c.code]=c.rate;});
-  apiCall('setSettings',{settings:{usernames:userNames,rates,trips:tripMemory}}).catch(()=>{});
+  enqueue({op:'settings',id:'__settings',value:{usernames:userNames,rates,trips:tripMemory}});
 }
-function pushBudgets(){if(apiUrl)apiCall('setBudgets',{budgets}).catch(()=>{});}
-function pushRecurring(){if(apiUrl)apiCall('setRecurring',{recurring:recurringPayments}).catch(()=>{});}
+function pushBudgets(){enqueue({op:'budgets',id:'__budgets',value:{...budgets}});}
+function pushRecurring(){enqueue({op:'recurring',id:'__recurring',value:recurringPayments.map(r=>({...r}))});}
 function setSyncStatus(ok,msg=''){
+  syncHealthy=ok;syncError=msg;paintSyncStatus();
+}
+function paintSyncStatus(){
   const dot=document.getElementById('sync-dot-add'),text=document.getElementById('sync-text-add');
   const cdot=document.getElementById('conn-dot'),ctext=document.getElementById('conn-text');
-  if(ok){
-    if(dot){dot.className='sync-dot ok';text.textContent=T('sync_ok');}
-    if(cdot){cdot.className='sync-dot ok';ctext.textContent=T('conn_ok');}
-  }else{
-    if(dot){dot.className='sync-dot err';text.textContent=apiUrl?T('sync_off'):T('sync_none');}
-    if(cdot){cdot.className='sync-dot err';ctext.textContent=msg||T('conn_no');}
-  }
+  const n=pendingOps.length,offline=navigator.onLine===false;
+  const label=!apiUrl?T('sync_none'):n?(lang==='en'?`${n} pending${flushing?' · syncing':''}`:`${n} 筆待同步${flushing?' · 同步中':''}`):offline?T('sync_off'):syncHealthy?(lang==='en'?'All synced':'全部已同步'):T('sync_off');
+  const cls=flushing?'loading':(!n&&!offline&&syncHealthy&&apiUrl?'ok':'err');
+  if(dot){dot.className='sync-dot '+cls;text.textContent=label;}
+  if(cdot){cdot.className='sync-dot '+cls;ctext.textContent=label+(syncError?' · '+syncError:'');}
 }
 
 // ===== Setup Modal =====
@@ -1725,6 +1747,7 @@ function buildEditCatGrid(){
   });
   const sel=document.getElementById('edit-cat-more');
   const secCats=cats.filter(c=>!primary.includes(c.id));
+  sel.hidden=entryKind==='income';
   const isSecSel=secCats.some(c=>c.id===editSelCat);
   sel.innerHTML=`<option value="">${T('cat_more')}</option>`;
   secCats.forEach(c=>{
@@ -2576,6 +2599,7 @@ function renderEasyCardSummary(){
   document.getElementById('easycard-last').textContent=T('easycard_last')+latest.date+' · '+fmtAmt(latest.amount,latest.curr);
 }
 function refreshToday(){
+  renderSpendingComparison('daily-spend-compare',false);
   const t=today(),list=records.filter(r=>r.date===t);
   const visibleList=filterByUser(list,todayUserFilter);
   const expenses=expenseRecords(visibleList);
@@ -2586,7 +2610,26 @@ function refreshToday(){
   buildUserTabs('today-user-tabs',todayUserFilter,(f)=>{todayUserFilter=f;refreshToday();});
   renderEntries(visibleList,'today-list');
 }
+function spendingComparison(monthly,now=new Date()){
+  const dateKey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const end=dateKey(now);
+  const previous=monthly?new Date(now.getFullYear(),now.getMonth()-1,Math.min(now.getDate(),new Date(now.getFullYear(),now.getMonth(),0).getDate())):new Date(now.getFullYear(),now.getMonth(),now.getDate()-1);
+  const prevEnd=dateKey(previous);
+  const start=monthly?end.slice(0,7)+'-01':end;
+  const prevStart=monthly?prevEnd.slice(0,7)+'-01':prevEnd;
+  const eligible=records.filter(r=>!isIncome(r)&&(!String(r.trip||'').trim()||isDailyTripName(r.trip)));
+  const sum=(from,to)=>eligible.filter(r=>r.date>=from&&r.date<=to).reduce((s,r)=>s+toTHB(r.amount,r.curr),0);
+  return {start,end,prevStart,prevEnd,current:sum(start,end),previous:sum(prevStart,prevEnd)};
+}
+function renderSpendingComparison(id,monthly){
+  const el=document.getElementById(id);if(!el)return;
+  const c=spendingComparison(monthly),diff=c.current-c.previous;
+  const labels=lang==='en'?(monthly?['Daily expenses · month comparison','This month to date','Last month, same period']:['Daily expenses · day comparison','Today','Yesterday']):(monthly?['日常支出 · 每月比較','本月至今','上月同期']:['日常支出 · 每日比較','今天','昨天']);
+  const change=diff===0?(lang==='en'?'No change':'與前期相同'):(lang==='en'?(diff>0?'More by ':'Less by '):(diff>0?'比前期多花 ':'比前期少花 '))+fmtTHB(Math.abs(diff));
+  el.innerHTML=`<div class="section-title">${labels[0]}</div><div style="display:flex;flex-wrap:wrap;gap:16px"><div>${labels[1]}<div class="num">${fmtTHB(c.current)}</div><small>${c.start} ~ ${c.end}</small></div><div>${labels[2]}<div class="num">${fmtTHB(c.previous)}</div><small>${c.prevStart} ~ ${c.prevEnd}</small></div></div><div style="margin-top:12px">${change}</div>`;
+}
 function refreshMonth(){
+  renderSpendingComparison('monthly-spend-compare',true);
   const m=thisMonth(),list=records.filter(r=>r.date.startsWith(m));
   const visibleList=filterByUser(list,monthUserFilter);
   const expenses=expenseRecords(visibleList);
@@ -2643,9 +2686,7 @@ function runReport(opts={}){
   renderEntries(filterByUser(list,repUserFilter),'rep-list');
 }
 function refreshSettings(){
-  const cdot=document.getElementById('conn-dot'),ctext=document.getElementById('conn-text');
-  if(apiUrl){cdot.className='sync-dot ok';ctext.textContent=T('conn_ok');}
-  else{cdot.className='sync-dot err';ctext.textContent=T('conn_no');}
+  paintSyncStatus();
   updateDeviceIdentityDisplay();
   buildRateList();
   refreshRecurringSettings();
@@ -2773,6 +2814,7 @@ document.getElementById('export-btn').onclick=()=>{
   const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,﻿'+encodeURIComponent(csv);a.download='expenses_'+today()+'.csv';a.click();
 };
 document.getElementById('clear-btn').onclick=()=>{
+  if(pendingOps.length||flushing){alert(lang==='en'?'Sync pending changes before clearing the cache.':'還有資料待同步，請先完成同步再清除快取。');return;}
   if(confirm(T('confirm_clear'))){records=[];pendingOps=[];saveLocal();savePending();refreshAll();alert(T('cleared'));}
 };
 
@@ -2811,7 +2853,7 @@ if(!apiUrl){
   runRecurring(false);
   setTimeout(()=>showSetupModal(),400);
 }else{
-  setSyncStatus(true);
+  paintSyncStatus();
   Promise.all([syncSettingsFromCloud(),syncFromCloud()]).then(([,ok])=>{
     runRecurring(ok);
     refreshAll();
