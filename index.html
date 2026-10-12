@@ -12,7 +12,7 @@
 <meta http-equiv="Expires" content="0">
 <script>
 (function(){
-  const APP_VERSION='20261012-001';
+  const APP_VERSION='20261012-002';
   if(!location.protocol.startsWith('http'))return;
   const params=new URLSearchParams(location.search);
   if(params.get('v')===APP_VERSION)return;
@@ -20,11 +20,11 @@
   location.replace(location.pathname+'?'+params.toString()+location.hash);
 })();
 </script>
-<link rel="manifest" href="manifest.webmanifest?v=20261012-001">
-<link rel="apple-touch-icon" href="icon-180.png?v=20261012-001">
-<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20261012-001">
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20261012-001">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20261012-001">
+<link rel="manifest" href="manifest.webmanifest?v=20261012-002">
+<link rel="apple-touch-icon" href="icon-180.png?v=20261012-002">
+<link rel="apple-touch-icon" sizes="180x180" href="icon-180.png?v=20261012-002">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=20261012-002">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png?v=20261012-002">
 <title>記帳本</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&family=Noto+Serif+TC:wght@500;600;700&display=swap');
@@ -262,11 +262,14 @@ body.browser-shell .nav{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 .mode-btn:active{transform:scale(0.96)}
 .mode-btn.active{border-color:var(--ink);background:var(--ink);color:#fbf9f2;box-shadow:var(--shadow-md)}
 .mode-btn.income.active{border-color:var(--ok);background:var(--ok);color:#fbf9f2}
-.trip-row{display:grid;grid-template-columns:1fr;gap:8px}
+.trip-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;min-width:0}
 .trip-custom.hidden{display:none}
 .daily-month-wrap{display:none;padding:12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface2)}
 .daily-month-wrap.show{display:block}
-.daily-month-wrap .form-input{margin-top:6px}
+.daily-month-wrap{min-width:0;max-width:100%;box-sizing:border-box}
+.daily-month-wrap .form-input{margin-top:6px;display:block;width:100%;min-width:0;max-width:100%;box-sizing:border-box;font-size:16px;-webkit-appearance:none;appearance:none}
+#daily-month-input::-webkit-date-and-time-value{text-align:left;min-width:0}
+#daily-month-input::-webkit-datetime-edit{padding:0;min-width:0}
 .daily-month-hint{margin-top:7px;font-size:12px;font-weight:700;color:var(--ink-3)}
 .trip-chip,.kind-chip{
   display:inline-flex;align-items:center;gap:4px;margin-left:4px;padding:2px 7px;
@@ -1196,7 +1199,7 @@ function processRecurring(){
       ));
       if(!alreadyExists){
         const rec={
-          id:uid(),kind:'expense',trip:rp.trip||'',cat:rp.cat,amount:rp.amount,curr:rp.curr,
+          id:uid(),kind:'expense',trip:recurringTripForDate(rp,t),cat:rp.cat,amount:rp.amount,curr:rp.curr,
           note:rp.note||getCat(rp.cat).label,date:t,ts:Date.now(),
           user:rp.user,isRecurring:true,recurringId:rp.id
         };
@@ -1500,6 +1503,21 @@ function normRec(r){
   r.trip=String(r.trip||'').trim();
   return r;
 }
+function recurringTripForDate(rp,date){
+  const trip=String(rp.trip||'').trim();
+  return !trip||isDailyTripName(trip)?dailyTripName(date.slice(0,7)):trip;
+}
+function migrateDailyRecurringRecords(){
+  const changed=[];
+  records=records.map(r=>{
+    if(isIncome(r)||String(r.trip||'').trim()||Number(r.amount)!==9300||r.curr!=='TWD')return r;
+    const updated={...r,trip:dailyTripName(r.date.slice(0,7))};
+    changed.push(updated);return updated;
+  });
+  if(!changed.length)return;
+  saveLocal();
+  changed.forEach(rec=>enqueue({op:'upsert',id:rec.id,rec}));
+}
 function migrateEasyCardRecords(){
   const changed=[];
   records=records.map(r=>{
@@ -1524,7 +1542,7 @@ async function syncFromCloud(){
       pendingOps.filter(o=>o.op==='upsert').forEach(o=>{map[o.rec.id]=normRec({...o.rec});});
       pendingOps.filter(o=>o.op==='delete').forEach(o=>{delete map[o.id];});
       records=Object.values(map);
-      saveLocal();migrateEasyCardRecords();setSyncStatus(true);return true;
+      saveLocal();migrateEasyCardRecords();migrateDailyRecurringRecords();setSyncStatus(true);return true;
     }
   }catch(e){setSyncStatus(false,e.message);}
   return false;
@@ -2832,7 +2850,7 @@ document.getElementById('inp-date').value=today();
 document.getElementById('rep-from').value='';
 document.getElementById('rep-to').value='';
 
-loadLocal();migrateEasyCardRecords();buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
+loadLocal();migrateEasyCardRecords();migrateDailyRecurringRecords();buildTripSelect();buildTripFilter();buildCatGrid();buildCurrUI();setEntryKind(entryKind);
 buildCatFilters('rep-cat-filter',repCatFilter,(id)=>{repCatFilter=id;refreshReport();});
 updateLangBtns();
 applyLang();
